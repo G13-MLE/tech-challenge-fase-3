@@ -1,0 +1,68 @@
+[project]
+name = "techchallenge-fase-3"
+version = "0.1.0"
+description = "Sistema de triagem automática de laudos médicos para classificação de urgência"
+readme = "README.md"
+requires-python = ">=3.14.7"
+dependencies = [
+    "fastapi>=0.115.0",
+    "joblib>=1.4.0",
+    "prometheus-client>=0.21.0",
+    "pydantic-settings>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "scikit-learn>=1.6.0",
+    "uvicorn>=0.34.0",
+]
+
+[build-system]
+requires = ["setuptools>=80.0.0"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "pre-commit>=4.2.0",
+    "pytest>=8.3.0",
+    "ruff>=0.15.17",
+    "black>=26.5.1",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "N",
+    "W",
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.black]
+target-version = ["py314"]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = ["-p", "no:cacheprovider"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

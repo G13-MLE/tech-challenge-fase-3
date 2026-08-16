@@ -1,0 +1,13 @@
+# =============================================================================
+# Parâmetros do pipeline
+# =============================================================================
+
+paths:
+  data_raw: data/raw
+  data_processed: data/processed
+  models_dir: models
+  configs_dir: configs
+
+train:
+  seed: 42
+  test_size: 0.2
