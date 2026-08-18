@@ -12,7 +12,9 @@ PYTHON := uv run python
 	sync setup verify \
 	test lint \
 	pipeline train pipeline-live train-live \
-	docker-train
+	create-model \
+	docker-build docker-run docker-train \
+	benchmark
 
 # ---------------------------------------------------------------------------
 # Help
@@ -36,7 +38,13 @@ help:
 	@echo "  make train-live      - Rodar apenas o treino direto (sem DVC) com logs live"
 	@echo ""
 	@echo "Docker:"
+	@echo "  make docker-build    - Construir imagem Docker da API"
+	@echo "  make docker-run      - Rodar API em container Docker"
 	@echo "  make docker-train    - Rodar pipeline DVC dentro do container (perfil train)"
+	@echo ""
+	@echo "Modelo e Benchmark:"
+	@echo "  make create-model    - Gerar modelo dummy (models/model.joblib)"
+	@echo "  make benchmark       - Benchmark de latência (P50/P95/P99)"
 	@echo ""
 
 # ---------------------------------------------------------------------------
@@ -63,6 +71,7 @@ test:
 
 lint:
 	uv run ruff check .
+	uv run ruff format --check .
 
 # ---------------------------------------------------------------------------
 # Pipeline DVC
@@ -82,14 +91,42 @@ pipeline-live:
 	@echo "[OK] pipeline concluído."
 
 train-live:
-	@echo "Rodando estagio de TREINO direto (sem DVC) com logs live..."
+	@echo "Rodando estágio de TREINO direto (sem DVC) com logs live..."
 	uv run python -m src.train.run
 	@echo "[OK] treino concluído."
 
 # ---------------------------------------------------------------------------
+# Modelo dummy
+# ---------------------------------------------------------------------------
+create-model:
+	@echo "Gerando modelo dummy..."
+	PYTHONPATH=. uv run python scripts/create_dummy_model.py
+
+# ---------------------------------------------------------------------------
+# Benchmark
+# ---------------------------------------------------------------------------
+benchmark:
+	@echo "Executando benchmark de latência..."
+	uv run python scripts/benchmark.py
+
+# ---------------------------------------------------------------------------
 # Docker
 # ---------------------------------------------------------------------------
-docker-train:
+docker-build:
+	@echo "Construindo imagem Docker..."
+	@rm -rf /tmp/triage-api-build && mkdir -p /tmp/triage-api-build/models
+	@cp -r pyproject.toml uv.lock src /tmp/triage-api-build/
+	@cp models/model.joblib /tmp/triage-api-build/models/model.joblib
+	docker build -t triage-api -f docker/Dockerfile /tmp/triage-api-build
+	@rm -rf /tmp/triage-api-build
+
+docker-run: docker-build
+	@echo "Rodando API em container Docker..."
+	docker compose -f docker/docker-compose.yml --env-file .env up -d
+	@echo "API disponível em http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)"
+	@echo "Para parar: docker compose -f docker/docker-compose.yml down"
+
+docker-train: docker-build
 	@echo "Docker: Rodando pipeline no container (perfil train)..."
-	docker compose -f docker/docker-compose.yml --env-file .env --profile train up --build train
+	docker compose -f docker/docker-compose.yml --env-file .env --profile train up train
 	@echo "[OK] Pipeline concluído."
