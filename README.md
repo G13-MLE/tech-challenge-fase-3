@@ -92,6 +92,29 @@ uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 make docker-run
 ```
 
+## Airflow (perfil airflow)
+
+### Subir a stack
+
+```bash
+make airflow-up
+```
+
+Aguardar os containers ficarem healthy (~30s). Acessar:
+
+| Serviço | URL |
+|---|---|
+| Airflow UI | http://localhost:8080 (admin/admin) |
+| MLflow UI | http://localhost:5001 |
+
+### Parar a stack
+
+```bash
+make airflow-down
+```
+
+A DAG `train_pipeline` executa semanalmente (`@weekly`) e reutiliza as funções de treino do pipeline DVC via `src/orchestration/training_tasks`.
+
 ### Endpoints
 
 | Método | Rota | Descrição |

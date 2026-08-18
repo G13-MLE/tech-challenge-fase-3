@@ -14,6 +14,7 @@ PYTHON := uv run python
 	pipeline train pipeline-live train-live evaluate-live data-synthetic \
 	dvc-remote \
 	docker-build docker-run docker-train \
+	airflow-up airflow-down airflow-logs \
 	benchmark
 
 # ---------------------------------------------------------------------------
@@ -44,6 +45,9 @@ help:
 	@echo "  make docker-build    - Construir imagem Docker da API"
 	@echo "  make docker-run      - Rodar API em container Docker"
 	@echo "  make docker-train    - Rodar pipeline DVC dentro do container (perfil train)"
+	@echo "  make airflow-up      - Subir stack Airflow + MLflow (perfil airflow)"
+	@echo "  make airflow-down    - Parar stack Airflow"
+	@echo "  make airflow-logs    - Logs da stack Airflow"
 	@echo ""
 	@echo "Modelo e Benchmark:"
 	@echo "  make benchmark       - Benchmark de latência (P50/P95/P99)"
@@ -152,3 +156,19 @@ docker-train: data-synthetic
 	@echo "Docker: Rodando pipeline no container (perfil train)..."
 	docker compose -f docker/docker-compose.yml --env-file .env --profile train run --rm train
 	@echo "[OK] Pipeline concluído."
+
+# ---------------------------------------------------------------------------
+# Airflow
+# ---------------------------------------------------------------------------
+airflow-up:
+	@echo "Subindo stack Airflow + MLflow..."
+	docker compose -f docker/docker-compose.yml --env-file .env --profile airflow up -d --build
+	@echo "Airflow UI: http://localhost:$$(grep AIRFLOW_PORT .env 2>/dev/null | cut -d= -f2 || echo 8080)"
+	@echo "MLflow UI:   http://localhost:$$(grep MLFLOW_PORT .env 2>/dev/null | cut -d= -f2 || echo 5001)"
+
+airflow-down:
+	@echo "Parando stack Airflow..."
+	docker compose -f docker/docker-compose.yml --profile airflow down
+
+airflow-logs:
+	docker compose -f docker/docker-compose.yml --profile airflow logs -f

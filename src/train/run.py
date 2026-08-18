@@ -5,6 +5,7 @@ com seeds fixos e salva o artefato em `models/model.joblib`.
 """
 
 import hashlib
+import io
 import logging
 from pathlib import Path
 
@@ -20,11 +21,12 @@ from src.core.dataset import (
     MODEL_HASH_PATH,
     MODEL_PATH,
     TEST_DATA_PATH,
+    atomic_write_bytes,
     atomic_write_text,
     load_csv_records,
     save_csv_records,
 )
-from src.core.params import load_params
+from src.core.params import TrainParams, load_params
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +51,11 @@ def build_pipeline(seed: int, n_estimators: int, max_features: int) -> Pipeline:
 
 
 def save_model(model: Pipeline, path: Path) -> None:
-    """Persiste o modelo treinado em joblib.
-
-    Args:
-        model: Pipeline sklearn treinado.
-        path: Caminho do arquivo de saída.
-    """
+    """Persiste o modelo treinado de forma atômica."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, path)
+    buf = io.BytesIO()
+    joblib.dump(model, buf)
+    atomic_write_bytes(path, buf.getvalue())
 
 
 def save_model_hash(model_path: Path, hash_path: Path) -> None:
@@ -86,29 +85,57 @@ def validate_model_classes(model: Pipeline) -> None:
         )
 
 
-def main() -> None:
-    """Executa o pipeline de treinamento completo."""
-    params = load_params()
-    texts, labels = load_csv_records(DATA_PROCESSED_PATH)
+def train_and_save(
+    data_path: Path = DATA_PROCESSED_PATH,
+    model_path: Path = MODEL_PATH,
+    model_hash_path: Path = MODEL_HASH_PATH,
+    test_data_path: Path = TEST_DATA_PATH,
+    params: TrainParams | None = None,
+) -> Path:
+    """Executa o pipeline de treinamento completo e salva os artefatos.
+
+    Carrega dados processados, divide em treino/teste com seed fixo,
+    treina o Pipeline TF-IDF + RandomForest, valida as classes, salva
+    modelo + hash + split de teste.
+
+    Args:
+        data_path: Caminho do CSV processado.
+        model_path: Caminho do arquivo de modelo.
+        model_hash_path: Caminho do arquivo de hash SHA256.
+        test_data_path: Caminho do CSV de teste.
+        params: Parâmetros do pipeline. Se None, carrega de configs/params.yaml.
+
+    Returns:
+        Caminho do modelo salvo.
+    """
+    if params is None:
+        params = load_params().train
+    texts, labels = load_csv_records(data_path)
     train_texts, test_texts, train_labels, test_labels = train_test_split(
         texts,
         labels,
-        test_size=params.train.test_size,
-        random_state=params.train.seed,
+        test_size=params.test_size,
+        random_state=params.seed,
         stratify=labels,
     )
     pipeline = build_pipeline(
-        params.train.seed,
-        params.train.random_forest_n_estimators,
-        params.train.tfidf_max_features,
+        params.seed,
+        params.random_forest_n_estimators,
+        params.tfidf_max_features,
     )
     pipeline.fit(train_texts, train_labels)
     validate_model_classes(pipeline)
-    save_model(pipeline, MODEL_PATH)
-    save_model_hash(MODEL_PATH, MODEL_HASH_PATH)
-    save_csv_records(list(zip(test_texts, test_labels)), TEST_DATA_PATH)
-    logger.info("Treinamento concluído: modelo salvo em %s", MODEL_PATH)
-    logger.info("Split de teste salvo em %s", TEST_DATA_PATH)
+    save_model(pipeline, model_path)
+    save_model_hash(model_path, model_hash_path)
+    save_csv_records(list(zip(test_texts, test_labels)), test_data_path)
+    logger.info("Treinamento concluído: modelo salvo em %s", model_path)
+    logger.info("Split de teste salvo em %s", test_data_path)
+    return model_path
+
+
+def main() -> None:
+    """Executa o pipeline de treinamento completo."""
+    train_and_save()
 
 
 if __name__ == "__main__":

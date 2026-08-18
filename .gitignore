@@ -57,6 +57,13 @@ mlartifacts/
 # Docker
 docker-compose.override.yml
 
+# Airflow
+.airflow/
+airflow.db
+airflow.cfg
+logs/
+webserver_config.py
+
 # OS
 .DS_Store
 Thumbs.db

@@ -21,6 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [dependency-groups]
 dev = [
+    "apache-airflow==3.3.1",
     "dvc>=3.67.0",
     "httpx>=0.28.0",
     "pre-commit>=4.2.0",
@@ -58,7 +59,7 @@ indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "dags"]
 addopts = ["-p", "no:cacheprovider"]
 filterwarnings = [
     "ignore::DeprecationWarning:httpx",
