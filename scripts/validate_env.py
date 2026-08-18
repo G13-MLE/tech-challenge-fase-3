@@ -86,6 +86,26 @@ def check_directories() -> bool:
     return ok
 
 
+def check_dvc_remote() -> bool:
+    """Verifica se o remote DVC está configurado (opcional).
+
+    O remote OneDrive é opcional: o pipeline roda self-contained sem ele.
+    Apenas emite um aviso, sem falhar a validação.
+
+    Returns:
+        bool: Sempre True (aviso não bloqueia).
+    """
+    env_path = Path(".env")
+    if not env_path.exists():
+        return True
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("DVC_ONEDRIVE_REMOTE_URL=") and line.split("=", 1)[1].strip():
+            print("[OK] remote DVC OneDrive configurado")
+            return True
+    print("[WARN] DVC_ONEDRIVE_REMOTE_URL vazio — remote opcional, pipeline roda self-contained")
+    return True
+
+
 def main() -> None:
     """Executa todas as validações e define o código de saída."""
     checks = [
@@ -93,6 +113,7 @@ def main() -> None:
         check_python_version(),
         check_packages(),
         check_directories(),
+        check_dvc_remote(),
     ]
     if all(checks):
         print("\n[OK] Ambiente validado com sucesso")

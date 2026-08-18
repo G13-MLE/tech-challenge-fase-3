@@ -1,0 +1,42 @@
+# =============================================================================
+# Pipeline DVC: ingestão -> treino -> avaliação
+# =============================================================================
+
+stages:
+  ingestao:
+    cmd: uv run python -m src.preprocess.run
+    deps:
+      - data/raw/laudos.csv
+      - src/preprocess/run.py
+      - src/preprocess/normalizer.py
+      - src/core/dataset.py
+    outs:
+      - data/processed/laudos_processed.csv
+
+  treino:
+    cmd: uv run python -m src.train.run
+    deps:
+      - data/processed/laudos_processed.csv
+      - src/train/run.py
+      - src/core/dataset.py
+      - src/core/params.py
+      - configs/params.yaml
+    outs:
+      - models/model.joblib
+      - models/model.joblib.sha256
+      - data/processed/test_split.csv
+
+  avaliacao:
+    cmd: uv run python -m src.evaluate.run
+    deps:
+      - models/model.joblib
+      - data/processed/test_split.csv
+      - src/evaluate/run.py
+      - src/core/dataset.py
+      - src/models/factory.py
+      - src/models/urgency.py
+    outs:
+      - reports/classification_report.txt
+    metrics:
+      - reports/metrics.json:
+          cache: false

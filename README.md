@@ -44,7 +44,7 @@ O modelo classifica o texto em 5 classes clínicas, mapeadas para 3 níveis de u
 | Diabetes / Hipertensão | Atenção |
 | Asma / Hérnia | Normal |
 
-> Nota: na Etapa 1 a API usa um modelo dummy em `joblib` com esse mapeamento. O modelo real é treinado na Etapa 4.
+> Nota: na Etapa 1 a API usa um modelo dummy em `joblib` com esse mapeamento. O modelo real é treinado na Etapa 4. O modelo servido pela API é gerado pelo pipeline DVC (TF-IDF + RandomForest) sobre o dataset sintético.
 
 ## Início Rápido
 
@@ -60,11 +60,25 @@ O modelo classifica o texto em 5 classes clínicas, mapeadas para 3 níveis de u
 make setup
 ```
 
-### Gerar modelo dummy
+### Gerar modelo via pipeline
 
 ```bash
-make create-model
+make data-synthetic   # dataset sintético registrado no DVC
+make pipeline         # dvc repro: ingestão -> treino -> avaliação
 ```
+
+### Remote DVC (opcional)
+
+O pipeline é **self-contained** por padrão: dados e modelos ficam no cache
+local do DVC, sem necessidade de remote. Para compartilhar artefatos entre
+máquinas (ex.: via OneDrive), preencha `DVC_ONEDRIVE_REMOTE_URL` no `.env`
+e configure o remote:
+
+```bash
+make dvc-remote        # ou make setup (configura automaticamente)
+```
+
+Para remover o remote: `dvc remote remove onedrive`.
 
 ### Executar localmente
 
@@ -101,7 +115,7 @@ make benchmark
 
 ## Baseline de Latência
 
-Resultados obtidos com `make benchmark` em Docker (modelo dummy, 100 requisições):
+Resultados obtidos com `make benchmark` em Docker (modelo sintético, 100 requisições):
 
 | Percentil | Latência |
 |---|---|
@@ -120,7 +134,13 @@ make help
 | `make setup` | Configurar ambiente |
 | `make test` | Rodar testes |
 | `make lint` | Verificar código |
-| `make create-model` | Gerar modelo dummy |
+| `make data-synthetic` | Gerar dataset sintético e registrar no DVC |
+| `make pipeline` | Rodar pipeline DVC completo (dvc repro) |
+| `make train` | Rodar estágio de treino (dvc repro train) |
+| `make pipeline-live` | Rodar pipeline direto (sem DVC), logs live |
+| `make train-live` | Rodar treino direto (sem DVC), logs live |
+| `make evaluate-live` | Rodar avaliação direto (sem DVC), logs live |
+| `make dvc-remote` | Configurar remote DVC OneDrive (opcional) |
 | `make benchmark` | Benchmark de latência |
 | `make docker-build` | Construir imagem Docker |
 | `make docker-run` | Rodar API em container |

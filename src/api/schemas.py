@@ -1,8 +1,10 @@
 """Schemas Pydantic para request e response da API."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.models.urgency import UrgencyLevel
+
+__all__ = ["PredictRequest", "PredictResponse"]
 
 
 class PredictRequest(BaseModel):
@@ -12,7 +14,26 @@ class PredictRequest(BaseModel):
         text: Texto do laudo médico a ser classificado.
     """
 
-    text: str = Field(..., min_length=1, description="Texto do laudo médico")
+    text: str = Field(..., min_length=1, max_length=10_000, description="Texto do laudo médico")
+
+    @field_validator("text")
+    @classmethod
+    def strip_whitespace(cls, v: str) -> str:
+        """Remove espaços desnecessários e rejeita texto vazio após strip.
+
+        Args:
+            v: Texto bruto do request.
+
+        Returns:
+            Texto com espaços removidos nas extremidades.
+
+        Raises:
+            ValueError: Se o texto for vazio após remoção de espaços.
+        """
+        v = v.strip()
+        if not v:
+            raise ValueError("Texto não pode ser vazio ou apenas espaços")
+        return v
 
 
 class PredictResponse(BaseModel):

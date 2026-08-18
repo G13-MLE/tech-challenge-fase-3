@@ -2,6 +2,8 @@
 
 from enum import Enum
 
+__all__ = ["UrgencyLevel", "URGENCY_MAP"]
+
 
 class UrgencyLevel(str, Enum):
     """Níveis de urgência para triagem de laudos médicos.

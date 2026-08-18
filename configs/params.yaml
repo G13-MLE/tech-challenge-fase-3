@@ -2,12 +2,8 @@
 # Parâmetros do pipeline
 # =============================================================================
 
-paths:
-  data_raw: data/raw
-  data_processed: data/processed
-  models_dir: models
-  configs_dir: configs
-
 train:
   seed: 42
   test_size: 0.2
+  random_forest_n_estimators: 100
+  tfidf_max_features: 500

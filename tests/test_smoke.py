@@ -1,5 +1,7 @@
 """Testes smoke: import do pacote e configuração básica."""
 
+from pydantic import SecretStr
+
 from src.core.config import Settings, get_settings
 
 
@@ -18,6 +20,12 @@ def test_settings_defaults() -> None:
     assert str(settings.model_path) == "models/model.joblib"
     assert settings.model_backend == "joblib"
     assert settings.mlflow_tracking_uri == "http://localhost:5001"
+
+
+def test_settings_kaggle_key_is_secret() -> None:
+    """Verifica que kaggle_key é armazenada como SecretStr."""
+    settings = Settings()
+    assert isinstance(settings.kaggle_key, SecretStr)
 
 
 def test_settings_reads_env_file() -> None:
