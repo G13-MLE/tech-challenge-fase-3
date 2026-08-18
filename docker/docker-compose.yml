@@ -1,0 +1,27 @@
+services:
+  api:
+    image: triage-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file:
+      - ../.env
+    environment:
+      - MODEL_PATH=/app/models/model.joblib
+      - MODEL_BACKEND=joblib
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  train:
+    image: triage-api
+    profiles:
+      - train
+    env_file:
+      - ../.env
+    environment:
+      - MODEL_PATH=/app/models/model.joblib
+      - MODEL_BACKEND=joblib
+    command: ["python", "-m", "src.train.run"]

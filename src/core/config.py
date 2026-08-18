@@ -6,6 +6,7 @@ disponibiliza acesso tipado às configurações em toda a aplicação.
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -36,6 +37,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     api_port: int = 8000
     model_path: Path = Path("models/model.joblib")
+    model_backend: Literal["joblib", "onnx"] = "joblib"
     mlflow_tracking_uri: str = "http://localhost:5001"
     kaggle_username: str = ""
     kaggle_key: str = ""

@@ -39,7 +39,7 @@ data/**/*.tar.gz
 # Modelos versionados pelo DVC
 models/*
 !models/.gitkeep
-models/*.joblib
+!models/model.joblib
 models/*.onnx
 
 # Relatorios e graficos gerados pela pipeline
@@ -66,3 +66,4 @@ Thumbs.db
 .idea/
 *.swp
 AGENTS.md
+docs

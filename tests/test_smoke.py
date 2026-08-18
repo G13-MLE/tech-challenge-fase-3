@@ -16,6 +16,7 @@ def test_settings_defaults() -> None:
     assert settings.log_level == "INFO"
     assert settings.api_port == 8000
     assert str(settings.model_path) == "models/model.joblib"
+    assert settings.model_backend == "joblib"
     assert settings.mlflow_tracking_uri == "http://localhost:5001"
 
 
