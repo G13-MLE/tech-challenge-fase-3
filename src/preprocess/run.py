@@ -1,26 +1,23 @@
 """Pipeline de pré-processamento dos dados.
 
-Carrega os laudos brutos de `data/raw`, aplica limpeza e normalização
-de texto e salva os dados processados em `data/processed`.
+Carrega os laudos brutos de `data/raw`, valida os dados, aplica
+limpeza e normalização de texto e salva os dados processados em
+`data/processed`.
 """
 
-import csv
 import logging
 from pathlib import Path
 
 from src.core.dataset import (
     DATA_PROCESSED_PATH,
     DATA_RAW_PATH,
-    LABEL_COLUMN,
-    TEXT_COLUMN,
     save_csv_records,
 )
 from src.preprocess.normalizer import (
-    LowercaseNormalizer,
-    PunctuationNormalizer,
     TextNormalizer,
-    compose_normalizers,
+    build_default_normalizer,
 )
+from src.validate.run import validate_raw_data
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +33,10 @@ def load_raw_records(path: Path) -> list[tuple[str, int]]:
 
     Raises:
         FileNotFoundError: Se o arquivo não existir.
+        ValueError: Se os dados brutos falharem na validação.
     """
-    if not path.exists():
-        raise FileNotFoundError(f"Arquivo de dados brutos não encontrado: {path}")
-    records: list[tuple[str, int]] = []
-    with path.open(encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            records.append((row[TEXT_COLUMN], int(row[LABEL_COLUMN])))
-    return records
+    texts, labels = validate_raw_data(path)
+    return list(zip(texts, labels, strict=True))
 
 
 def preprocess_text(text: str, normalizer: TextNormalizer) -> str:
@@ -60,19 +52,15 @@ def preprocess_text(text: str, normalizer: TextNormalizer) -> str:
     return normalizer.normalize(text)
 
 
-def build_default_normalizer() -> TextNormalizer:
-    """Constrói a estratégia padrão de normalização de texto.
-
-    Returns:
-        Estratégia composta (minúsculas sem acento + sem pontuação).
-    """
-    return compose_normalizers(LowercaseNormalizer(), PunctuationNormalizer())
-
-
 def main() -> None:
-    """Executa o pipeline de pré-processamento completo."""
+    """Executa o pipeline de pré-processamento completo.
+
+    Primeiro valida os dados brutos (colunas, rótulos, textos não vazios)
+    e depois aplica a normalização de texto.
+    """
     normalizer = build_default_normalizer()
-    raw_records = load_raw_records(DATA_RAW_PATH)
+    texts, labels = validate_raw_data(DATA_RAW_PATH)
+    raw_records = list(zip(texts, labels, strict=True))
     processed_records = [(preprocess_text(text, normalizer), label) for text, label in raw_records]
     save_csv_records(processed_records, DATA_PROCESSED_PATH)
     logger.info(

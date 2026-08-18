@@ -7,12 +7,13 @@ import pytest
 from src.core.dataset import LABEL_COLUMN, TEXT_COLUMN, load_csv_records, save_csv_records
 from src.preprocess.normalizer import (
     ComposedNormalizer,
+    ControlCharacterNormalizer,
     LowercaseNormalizer,
     PunctuationNormalizer,
+    build_default_normalizer,
     compose_normalizers,
 )
 from src.preprocess.run import (
-    build_default_normalizer,
     load_raw_records,
     preprocess_text,
 )
@@ -64,6 +65,15 @@ class TestNormalizers:
     def test_numbers_preserved(self) -> None:
         normalizer = build_default_normalizer()
         assert "tipo 2" in normalizer.normalize("Paciente com diabetes tipo 2")
+
+    def test_control_character_normalizer(self) -> None:
+        normalizer = ControlCharacterNormalizer()
+        assert normalizer.normalize("paciente\x00com\x1fpneumonia") == "paciente com pneumonia"
+
+    def test_default_normalizer_strips_control_chars(self) -> None:
+        normalizer = build_default_normalizer()
+        result = normalizer.normalize("Paciente\x00 com \x1fPNEUMONIA!")
+        assert result == "paciente com pneumonia"
 
 
 class TestPreprocessPipeline:

@@ -7,6 +7,7 @@ requires-python = ">=3.14.7"
 dependencies = [
     "fastapi>=0.115.0",
     "joblib>=1.4.0",
+    "mlflow>=2.20.0",
     "prometheus-client>=0.21.0",
     "pydantic-settings>=2.8.0",
     "python-dotenv>=1.0.0",
@@ -50,8 +51,15 @@ select = [
     "I",
     "N",
     "W",
+    "UP",
+    "B",
+    "SIM",
+    "C4",
+    "T20",
+    "RET",
+    "PTH",
 ]
-ignore = []
+ignore = ["B008", "T201"]
 
 [tool.ruff.format]
 quote-style = "double"

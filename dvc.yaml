@@ -10,6 +10,7 @@ stages:
       - src/preprocess/run.py
       - src/preprocess/normalizer.py
       - src/core/dataset.py
+      - src/validate/run.py
     outs:
       - data/processed/laudos_processed.csv
 
@@ -20,11 +21,16 @@ stages:
       - src/train/run.py
       - src/core/dataset.py
       - src/core/params.py
+      - src/core/stopwords.py
       - configs/params.yaml
     outs:
       - models/model.joblib
       - models/model.joblib.sha256
       - data/processed/test_split.csv
+      - reports/feature_importances.csv
+    metrics:
+      - reports/train_metrics.json:
+          cache: false
 
   avaliacao:
     cmd: uv run python -m src.evaluate.run
@@ -36,7 +42,9 @@ stages:
       - src/models/factory.py
       - src/models/urgency.py
     outs:
-      - reports/classification_report.txt
+      - reports/classification_report.txt:
+          cache: false
+      - reports/confusion_matrix.csv
     metrics:
       - reports/metrics.json:
           cache: false

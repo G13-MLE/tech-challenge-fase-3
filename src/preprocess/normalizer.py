@@ -8,8 +8,10 @@ __all__ = [
     "TextNormalizer",
     "LowercaseNormalizer",
     "PunctuationNormalizer",
+    "ControlCharacterNormalizer",
     "ComposedNormalizer",
     "compose_normalizers",
+    "build_default_normalizer",
 ]
 
 
@@ -29,7 +31,14 @@ class TextNormalizer(ABC):
 
 
 class LowercaseNormalizer(TextNormalizer):
-    """Converte o texto para minúsculas e remove acentuação."""
+    """Converte o texto para minúsculas e remove acentuação.
+
+    Usa normalização Unicode NFD para decompor caracteres acentuados
+    (ex.: "ação" -> "acao"). A remoção de acentos é intencional para
+    manter consistência entre treino e inferência; termos acentuados
+    e não acentuados colapsam no mesmo token. Se acentos forem
+    semanticamente relevantes no futuro, revise esta estratégia.
+    """
 
     def normalize(self, text: str) -> str:
         normalized = unicodedata.normalize("NFD", text)
@@ -48,6 +57,13 @@ class PunctuationNormalizer(TextNormalizer):
         without_punctuation = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
         without_underscores = without_punctuation.replace("_", " ")
         return re.sub(r"\s+", " ", without_underscores).strip()
+
+
+class ControlCharacterNormalizer(TextNormalizer):
+    """Remove caracteres de controle (não imprimíveis) do texto."""
+
+    def normalize(self, text: str) -> str:
+        return re.sub(r"[\x00-\x1f\x7f]", " ", text)
 
 
 class ComposedNormalizer(TextNormalizer):
@@ -73,3 +89,16 @@ def compose_normalizers(*normalizers: TextNormalizer) -> TextNormalizer:
         Estratégia composta que aplica os normalizadores na ordem dada.
     """
     return ComposedNormalizer(normalizers)
+
+
+def build_default_normalizer() -> TextNormalizer:
+    """Constrói a estratégia padrão de normalização de texto.
+
+    Returns:
+        Estratégia composta (controle + minúsculas sem acento + sem pontuação).
+    """
+    return compose_normalizers(
+        ControlCharacterNormalizer(),
+        LowercaseNormalizer(),
+        PunctuationNormalizer(),
+    )

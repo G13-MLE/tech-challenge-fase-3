@@ -8,6 +8,11 @@ services:
     environment:
       - MODEL_PATH=/app/models/model.joblib
       - MODEL_BACKEND=joblib
+      - RATE_LIMIT_MAX_PER_IP=${RATE_LIMIT_MAX_PER_IP:-60}
+      - RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS:-60}
+    volumes:
+      # Modelo montado via volume (não embutido na imagem)
+      - ../models:/app/models:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -29,7 +34,7 @@ services:
       - ../models:/app/models
       - ../reports:/app/reports
       - ../configs:/app/configs
-    command: ["python", "-m", "src.train.run"]
+    command: ["sh", "-c", "python -m src.preprocess.run && python -m src.train.run && python -m src.evaluate.run"]
 
   # ── Airflow profile ──────────────────────────────────────────────────
 
@@ -38,23 +43,13 @@ services:
     profiles:
       - airflow
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
+      POSTGRES_USER: ${AIRFLOW_POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD:-airflow}
       POSTGRES_DB: airflow
     volumes:
       - airflow-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airflow"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  airflow-redis:
-    image: redis:7-alpine
-    profiles:
-      - airflow
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -68,17 +63,18 @@ services:
     depends_on:
       airflow-postgres:
         condition: service_healthy
-      airflow-redis:
-        condition: service_healthy
     environment: &airflow-common-env
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg://airflow:airflow@airflow-postgres/airflow"
-      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@airflow-postgres/airflow"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-      AIRFLOW__CELERY__BROKER_URL: "redis://airflow-redis:6379/0"
-      AIRFLOW__CELERY__RESULT_BACKEND: "db+postgresql+psycopg://airflow:airflow@airflow-postgres/airflow"
-      AIRFLOW__WEBSERVER__SECRET_KEY: "dev-secret-change-in-prod"
-      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
-      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "30"
+      AIRFLOW__SECURITY__SECRET_KEY: "${AIRFLOW_SECRET_KEY:-dev-secret-change-in-prod}"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:ADMIN"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: "/opt/airflow/simple_auth_manager_passwords.json"
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8080/execution/"
+      AIRFLOW__API_AUTH__JWT_SECRET: "${AIRFLOW_JWT_SECRET:-dev-jwt-secret-change-in-prod}"
+      AIRFLOW__API_AUTH__JWT_ISSUER: "airflow"
+      AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "30"
+      AIRFLOW__DAG_PROCESSOR__DAG_BUNDLE_CONFIG_LIST: '[{"name": "local_dags", "classpath": "airflow.dag_processing.bundles.local.LocalDagBundle", "kwargs": {"path": "/opt/airflow/dags"}}]'
       _AIRFLOW_WWW_USER_USERNAME: "${AIRFLOW_ADMIN_USER:-admin}"
       _AIRFLOW_WWW_USER_PASSWORD: "${AIRFLOW_ADMIN_PASSWORD:-admin}"
       PYTHONPATH: /opt/airflow
@@ -87,6 +83,7 @@ services:
       - ../data:/opt/airflow/data
       - ../models:/opt/airflow/models
       - ../configs:/opt/airflow/configs:ro
+      - ./simple_auth_manager_passwords.json:/opt/airflow/simple_auth_manager_passwords.json
     entrypoint: /bin/bash
     command:
       - -c
@@ -96,6 +93,27 @@ services:
           --firstname Admin --lastname User --role Admin \
           --email admin@example.com \
           --password "$${_AIRFLOW_WWW_USER_PASSWORD}" || true
+
+  airflow-apiserver:
+    build:
+      context: ..
+      dockerfile: docker/airflow.Dockerfile
+    profiles:
+      - airflow
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment: *airflow-common-env
+    volumes: *airflow-common-volumes
+    ports:
+      - "${AIRFLOW_PORT:-8080}:8080"
+    command: api-server
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   airflow-scheduler:
     build:
@@ -116,7 +134,7 @@ services:
       retries: 5
       start_period: 30s
 
-  airflow-triggerer:
+  airflow-dag-processor:
     build:
       context: ..
       dockerfile: docker/airflow.Dockerfile
@@ -127,49 +145,9 @@ services:
         condition: service_completed_successfully
     environment: *airflow-common-env
     volumes: *airflow-common-volumes
-    command: triggerer
+    command: dag-processor
     healthcheck:
-      test: ["CMD", "airflow", "jobs", "check", "--job-type", "TriggererJob"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  airflow-worker:
-    build:
-      context: ..
-      dockerfile: docker/airflow.Dockerfile
-    profiles:
-      - airflow
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-    environment: *airflow-common-env
-    volumes: *airflow-common-volumes
-    command: celery worker
-    healthcheck:
-      test: ["CMD", "celery", "--app", "airflow.executors.celery_executor.app", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  airflow-webserver:
-    build:
-      context: ..
-      dockerfile: docker/airflow.Dockerfile
-    profiles:
-      - airflow
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-    environment: *airflow-common-env
-    volumes: *airflow-common-volumes
-    ports:
-      - "${AIRFLOW_PORT:-8080}:8080"
-    command: webserver
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "DagProcessorJob"]
       interval: 30s
       timeout: 10s
       retries: 5

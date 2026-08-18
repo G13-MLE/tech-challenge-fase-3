@@ -1,14 +1,14 @@
 """Enumeração dos níveis de urgência para classificação de laudos médicos."""
 
-from enum import Enum
+from enum import StrEnum
 
 __all__ = ["UrgencyLevel", "URGENCY_MAP"]
 
 
-class UrgencyLevel(str, Enum):
+class UrgencyLevel(StrEnum):
     """Níveis de urgência para triagem de laudos médicos.
 
-    Herda de str para serialização direta em JSON via Pydantic/FastAPI.
+    Herda de StrEnum para serialização direta em JSON via Pydantic/FastAPI.
     """
 
     NORMAL = "normal"

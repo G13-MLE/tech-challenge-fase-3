@@ -94,6 +94,11 @@ make docker-run
 
 ## Airflow (perfil airflow)
 
+Stack mínima containerizada: Airflow 3.x com `LocalExecutor` (PostgreSQL
+para metadados, sem Redis/Celery) + MLflow para tracking de experimentos.
+Containers: `airflow-postgres`, `airflow-init`, `airflow-scheduler`,
+`airflow-dag-processor`, `airflow-apiserver` (UI + API) e `mlflow`.
+
 ### Subir a stack
 
 ```bash
@@ -119,16 +124,20 @@ A DAG `train_pipeline` executa semanalmente (`@weekly`) e reutiliza as funções
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/health` | Health check |
-| POST | `/predict` | Classificação de urgência |
+| GET | `/health` | Health check (ok / degraded) |
+| GET | `/metrics` | Métricas Prometheus |
+| POST | `/api/v1/predict` | Classificação de urgência |
+| POST | `/api/v1/predict/batch` | Classificação em lote (até 100 textos) |
 
 Exemplo:
 
 ```bash
-curl -X POST http://localhost:8000/predict \
+curl -X POST http://localhost:8000/api/v1/predict \
   -H "Content-Type: application/json" \
   -d '{"text": "paciente com pneumonia bacteriana grave"}'
 ```
+
+Autenticação opcional por API key (`X-API-Key`): habilite via `API_KEY_ENABLED=true` e defina `API_KEY` no `.env`.
 
 ### Benchmark de latência
 

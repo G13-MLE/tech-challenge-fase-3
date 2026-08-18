@@ -14,6 +14,9 @@ MODEL_PATH = Path("models/model.joblib")
 MODEL_HASH_PATH = Path("models/model.joblib.sha256")
 METRICS_PATH = Path("reports/metrics.json")
 REPORT_PATH = Path("reports/classification_report.txt")
+CONFUSION_MATRIX_PATH = Path("reports/confusion_matrix.csv")
+FEATURE_IMPORTANCES_PATH = Path("reports/feature_importances.csv")
+TRAIN_METRICS_PATH = Path("reports/train_metrics.json")
 
 TEXT_COLUMN = "text"
 LABEL_COLUMN = "label"

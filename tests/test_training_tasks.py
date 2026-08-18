@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from src.core.params import TrainParams
-from src.orchestration.training_tasks import load_data, save_model, train_model
+from src.orchestration.training_tasks import (
+    evaluate_model,
+    load_data,
+    save_model,
+    train_model,
+)
 
 TRAINING_ROWS = [
     ("paciente com asma brônquica e sibilos", 0),
@@ -72,10 +77,14 @@ class TestTrainModel:
         model_path = model_dir / "model.joblib"
         hash_path = model_dir / "model.joblib.sha256"
         test_path = tmp_path / "test_split.csv"
+        feat_path = tmp_path / "feature_importances.csv"
+        train_metrics_path = tmp_path / "train_metrics.json"
 
         monkeypatch.setattr("src.orchestration.training_tasks.MODEL_PATH", model_path)
         monkeypatch.setattr("src.orchestration.training_tasks.MODEL_HASH_PATH", hash_path)
         monkeypatch.setattr("src.orchestration.training_tasks.TEST_DATA_PATH", test_path)
+        monkeypatch.setattr("src.train.run.FEATURE_IMPORTANCES_PATH", feat_path)
+        monkeypatch.setattr("src.train.run.TRAIN_METRICS_PATH", train_metrics_path)
 
         result = train_model(str(csv_path), params=TEST_PARAMS)
 
@@ -96,6 +105,10 @@ class TestTrainModel:
         monkeypatch.setattr("src.orchestration.training_tasks.MODEL_PATH", model_path)
         monkeypatch.setattr("src.orchestration.training_tasks.MODEL_HASH_PATH", hash_path)
         monkeypatch.setattr("src.orchestration.training_tasks.TEST_DATA_PATH", test_path)
+        monkeypatch.setattr(
+            "src.train.run.FEATURE_IMPORTANCES_PATH", tmp_path / "feature_importances.csv"
+        )
+        monkeypatch.setattr("src.train.run.TRAIN_METRICS_PATH", tmp_path / "train_metrics.json")
 
         train_model(str(csv_path), params=TEST_PARAMS)
         hash1 = hash_path.read_text(encoding="utf-8").strip()
@@ -119,3 +132,17 @@ class TestSaveModel:
     def test_save_model_missing_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             save_model(str(tmp_path / "inexistente.joblib"))
+
+
+class TestEvaluateModel:
+    """Testes de evaluate_model."""
+
+    def test_evaluate_model_runs(self, mini_model_path, tmp_path, monkeypatch):
+        test_data = tmp_path / "test_split.csv"
+        test_data.write_text(
+            "text,label\npaciente com asma,0\npneumonia grave,2\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("src.evaluate.run.TEST_DATA_PATH", test_data)
+        result = evaluate_model(str(mini_model_path))
+        assert result == str(mini_model_path)

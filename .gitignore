@@ -56,6 +56,7 @@ mlartifacts/
 
 # Docker
 docker-compose.override.yml
+docker/simple_auth_manager_passwords.json
 
 # Airflow
 .airflow/

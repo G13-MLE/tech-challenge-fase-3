@@ -14,6 +14,7 @@ def test_dag_imports():
     assert "load_data_task" in task_ids
     assert "train_model_task" in task_ids
     assert "save_model_task" in task_ids
+    assert "evaluate_model_task" in task_ids
 
 
 def test_dag_catchup_false():

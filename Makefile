@@ -15,7 +15,7 @@ PYTHON := uv run python
 	dvc-remote \
 	docker-build docker-run docker-train \
 	airflow-up airflow-down airflow-logs \
-	benchmark
+	api-up api-down benchmark
 
 # ---------------------------------------------------------------------------
 # Help
@@ -50,7 +50,9 @@ help:
 	@echo "  make airflow-logs    - Logs da stack Airflow"
 	@echo ""
 	@echo "Modelo e Benchmark:"
-	@echo "  make benchmark       - Benchmark de latência (P50/P95/P99)"
+	@echo "  make api-up          - Subir API em Docker (build + health check)"
+	@echo "  make api-down        - Parar API"
+	@echo "  make benchmark       - Benchmark de latência (P50/P95/P99, sobe API se necessário)"
 	@echo ""
 
 # ---------------------------------------------------------------------------
@@ -130,21 +132,48 @@ data-synthetic:
 # ---------------------------------------------------------------------------
 # Benchmark
 # ---------------------------------------------------------------------------
-benchmark:
+api-up: docker-build
+	@echo "Subindo API em container Docker..."
+	docker compose -f docker/docker-compose.yml --env-file .env up -d api
+	@echo "Aguardando API ficar saudável..."
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)/health > /dev/null 2>&1; then \
+			echo "[OK] API saudável em http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)"; \
+			exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "[ERRO] API não ficou saudável a tempo."; exit 1
+
+api-down:
+	@echo "Parando API..."
+	docker compose -f docker/docker-compose.yml --env-file .env down api
+
+benchmark: docker-build
+	@echo "Subindo API em container Docker (rate limit desabilitado para benchmark)..."
+	RATE_LIMIT_MAX_PER_IP=0 docker compose -f docker/docker-compose.yml --env-file .env up -d api
+	@echo "Aguardando API ficar saudável..."
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)/health > /dev/null 2>&1; then \
+			echo "[OK] API saudável"; \
+			break; \
+		fi; \
+		sleep 2; \
+	done
 	@echo "Executando benchmark de latência..."
 	uv run python scripts/benchmark.py
+	docker compose -f docker/docker-compose.yml --env-file .env stop api
 
 # ---------------------------------------------------------------------------
 # Docker
 # ---------------------------------------------------------------------------
 docker-build:
 	@echo "Construindo imagem Docker..."
-	@rm -rf /tmp/triage-api-build && mkdir -p /tmp/triage-api-build/models
+	@rm -rf /tmp/triage-api-build && mkdir -p /tmp/triage-api-build
 	@cp -r pyproject.toml uv.lock src /tmp/triage-api-build/
-	@cp models/model.joblib /tmp/triage-api-build/models/model.joblib
-	@if [ -f models/model.joblib.sha256 ]; then cp models/model.joblib.sha256 /tmp/triage-api-build/models/model.joblib.sha256; else echo "placeholder" > /tmp/triage-api-build/models/model.joblib.sha256; fi
 	docker build -t triage-api -f docker/Dockerfile /tmp/triage-api-build
 	@rm -rf /tmp/triage-api-build
+	@echo "[OK] Imagem construída. O modelo é montado via volume em docker-compose (../models:/app/models)."
 
 docker-run: docker-build
 	@echo "Rodando API em container Docker..."
@@ -153,7 +182,7 @@ docker-run: docker-build
 	@echo "Para parar: docker compose -f docker/docker-compose.yml down"
 
 docker-train: data-synthetic
-	@echo "Docker: Rodando pipeline no container (perfil train)..."
+	@echo "Docker: Rodando pipeline DVC completo no container (perfil train)..."
 	docker compose -f docker/docker-compose.yml --env-file .env --profile train run --rm train
 	@echo "[OK] Pipeline concluído."
 
