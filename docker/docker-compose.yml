@@ -24,4 +24,9 @@ services:
     environment:
       - MODEL_PATH=/app/models/model.joblib
       - MODEL_BACKEND=joblib
+    volumes:
+      - ../data:/app/data
+      - ../models:/app/models
+      - ../reports:/app/reports
+      - ../configs:/app/configs
     command: ["python", "-m", "src.train.run"]

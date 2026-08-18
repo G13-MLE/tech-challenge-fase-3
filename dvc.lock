@@ -1,0 +1,98 @@
+schema: '2.0'
+stages:
+  ingestao:
+    cmd: uv run python -m src.preprocess.run
+    deps:
+    - path: data/raw/laudos.csv
+      hash: md5
+      md5: b2d66b1748164047fa39145b7116ca0c
+      size: 19648
+    - path: src/core/dataset.py
+      hash: md5
+      md5: 58f3036abfa13ba7ab474d2f3ca825e4
+      size: 3070
+    - path: src/preprocess/normalizer.py
+      hash: md5
+      md5: cfdeb984da9e8b076524668361ffd419
+      size: 2179
+    - path: src/preprocess/run.py
+      hash: md5
+      md5: 14edaabc0c0b370f3d141bdd22db1a11
+      size: 2457
+    outs:
+    - path: data/processed/laudos_processed.csv
+      hash: md5
+      md5: da1a172303d22a0fbbe01ea67ded6980
+      size: 18603
+  treino:
+    cmd: uv run python -m src.train.run
+    deps:
+    - path: configs/params.yaml
+      hash: md5
+      md5: d5ad23411b0cbb4009c3ce547ab0bb08
+      size: 282
+    - path: data/processed/laudos_processed.csv
+      hash: md5
+      md5: da1a172303d22a0fbbe01ea67ded6980
+      size: 18603
+    - path: src/core/dataset.py
+      hash: md5
+      md5: 58f3036abfa13ba7ab474d2f3ca825e4
+      size: 3070
+    - path: src/core/params.py
+      hash: md5
+      md5: b306682644ed1afa94652b91bb35e5fd
+      size: 1792
+    - path: src/train/run.py
+      hash: md5
+      md5: 10a29dabbfffbda587991889f6703062
+      size: 3485
+    outs:
+    - path: data/processed/test_split.csv
+      hash: md5
+      md5: f16c5d62d25210d4c64bf632d2ec49cb
+      size: 3639
+    - path: models/model.joblib
+      hash: md5
+      md5: e150ef394933b723e3db599a97b97409
+      size: 277149
+    - path: models/model.joblib.sha256
+      hash: md5
+      md5: 0112ddfe6763ac9c58ea278b657bf4ca
+      size: 64
+  avaliacao:
+    cmd: uv run python -m src.evaluate.run
+    deps:
+    - path: data/processed/test_split.csv
+      hash: md5
+      md5: f16c5d62d25210d4c64bf632d2ec49cb
+      size: 3639
+    - path: models/model.joblib
+      hash: md5
+      md5: e150ef394933b723e3db599a97b97409
+      size: 277149
+    - path: src/core/dataset.py
+      hash: md5
+      md5: 58f3036abfa13ba7ab474d2f3ca825e4
+      size: 3070
+    - path: src/evaluate/run.py
+      hash: md5
+      md5: 30d13699c1a6d36905d7c238c8b29f62
+      size: 2990
+    - path: src/models/factory.py
+      hash: md5
+      md5: 5ea5a0d7500aeb71af42e3498fef777b
+      size: 6993
+    - path: src/models/urgency.py
+      hash: md5
+      md5: c9285188d8676224a12fb3f604d0f50f
+      size: 532
+    outs:
+    - path: reports/classification_report.txt
+      hash: md5
+      md5: a0e5340ac270bd1dd27befe3e730dc11
+      size: 380
+    - path: reports/metrics.json
+      hash: md5
+      md5: 657757543e75d9886a6cf62e449e7c63
+      size: 72

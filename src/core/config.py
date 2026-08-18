@@ -8,7 +8,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+__all__ = ["Settings", "get_settings"]
 
 
 class Settings(BaseSettings):
@@ -20,9 +23,10 @@ class Settings(BaseSettings):
         log_level: Nível de log (DEBUG | INFO | WARNING | ERROR).
         api_port: Porta do servidor FastAPI.
         model_path: Caminho do artefato de modelo treinado.
+        model_backend: Backend de carregamento (joblib | onnx).
         mlflow_tracking_uri: URL do servidor MLflow.
         kaggle_username: Usuário do Kaggle para download do dataset.
-        kaggle_key: Chave de API do Kaggle.
+        kaggle_key: Chave de API do Kaggle (armazenada como segredo).
         dvc_onedrive_remote_url: URL do remote DVC (OneDrive), opcional.
     """
 
@@ -40,7 +44,7 @@ class Settings(BaseSettings):
     model_backend: Literal["joblib", "onnx"] = "joblib"
     mlflow_tracking_uri: str = "http://localhost:5001"
     kaggle_username: str = ""
-    kaggle_key: str = ""
+    kaggle_key: SecretStr = SecretStr("")
     dvc_onedrive_remote_url: str = ""
 
 

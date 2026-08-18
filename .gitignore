@@ -23,9 +23,10 @@ wheels/
 # Kaggle credentials
 .kaggle/
 
-# Dados brutos (baixados via Kaggle na Etapa 4)
+# Dados brutos (gerenciados pelo DVC; dataset real via Kaggle na Etapa 4)
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/*.dvc
 
 # Dados processados (versionados pelo DVC)
 data/**/*.csv
@@ -39,8 +40,6 @@ data/**/*.tar.gz
 # Modelos versionados pelo DVC
 models/*
 !models/.gitkeep
-!models/model.joblib
-models/*.onnx
 
 # Relatorios e graficos gerados pela pipeline
 reports/
