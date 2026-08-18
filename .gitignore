@@ -56,6 +56,14 @@ mlartifacts/
 
 # Docker
 docker-compose.override.yml
+docker/simple_auth_manager_passwords.json
+
+# Airflow
+.airflow/
+airflow.db
+airflow.cfg
+logs/
+webserver_config.py
 
 # OS
 .DS_Store

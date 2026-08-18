@@ -28,6 +28,14 @@ class Settings(BaseSettings):
         kaggle_username: Usuário do Kaggle para download do dataset.
         kaggle_key: Chave de API do Kaggle (armazenada como segredo).
         dvc_onedrive_remote_url: URL do remote DVC (OneDrive), opcional.
+        cors_allow_origins: Lista de origens permitidas para CORS
+            ('*' permite todas as origens).
+        api_key_enabled: Se True, exige header X-API-Key em /predict.
+        api_key: Chave de API para autenticação (armazenada como segredo).
+        rate_limit_requests: Número máximo de requisições por IP por janela.
+        rate_limit_window_seconds: Janela do rate limit em segundos.
+        trust_forwarded_headers: Se True, confia no header X-Forwarded-For
+            para extrair o IP do cliente (use apenas atrás de proxy reverso).
     """
 
     model_config = SettingsConfigDict(
@@ -46,6 +54,12 @@ class Settings(BaseSettings):
     kaggle_username: str = ""
     kaggle_key: SecretStr = SecretStr("")
     dvc_onedrive_remote_url: str = ""
+    cors_allow_origins: list[str] = ["*"]
+    api_key_enabled: bool = False
+    api_key: SecretStr = SecretStr("")
+    rate_limit_max_per_ip: int = 60
+    rate_limit_window_seconds: int = 60
+    trust_forwarded_headers: bool = False
 
 
 @lru_cache

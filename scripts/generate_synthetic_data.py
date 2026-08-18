@@ -10,18 +10,15 @@ Os textos são combinações determinísticas de sujeito, condição e
 contexto, com seed fixo para reprodutibilidade completa do dataset.
 """
 
-import csv
 import random
 from pathlib import Path
 
+from src.core.dataset import save_csv_records
 from src.models.urgency import URGENCY_MAP
 
 SEED = 42
 RAW_DATA_DIR = Path("data/raw")
 RAW_DATA_PATH = RAW_DATA_DIR / "laudos.csv"
-
-TEXT_COLUMN = "text"
-LABEL_COLUMN = "label"
 
 SUBJECTS = [
     "paciente",
@@ -119,10 +116,7 @@ def save_dataset(rows: list[tuple[str, int]]) -> None:
         rows: Lista de tuplas (texto, label) a serem gravadas.
     """
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with RAW_DATA_PATH.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow([TEXT_COLUMN, LABEL_COLUMN])
-        writer.writerows(rows)
+    save_csv_records(rows, RAW_DATA_PATH)
 
 
 def main() -> None:

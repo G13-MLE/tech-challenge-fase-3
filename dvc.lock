@@ -9,16 +9,20 @@ stages:
       size: 19648
     - path: src/core/dataset.py
       hash: md5
-      md5: 58f3036abfa13ba7ab474d2f3ca825e4
-      size: 3070
+      md5: 65b36cb1a4d24e106e1e0406cc85a553
+      size: 3254
     - path: src/preprocess/normalizer.py
       hash: md5
-      md5: cfdeb984da9e8b076524668361ffd419
-      size: 2179
+      md5: eac30df8fa35a06a32be977c3d417c7c
+      size: 2784
     - path: src/preprocess/run.py
       hash: md5
-      md5: 14edaabc0c0b370f3d141bdd22db1a11
-      size: 2457
+      md5: 844ad46c490ae3e071f67995132bf605
+      size: 2431
+    - path: src/validate/run.py
+      hash: md5
+      md5: c9e900ed7acc890cf1de1e9a9f110136
+      size: 2869
     outs:
     - path: data/processed/laudos_processed.csv
       hash: md5
@@ -29,24 +33,28 @@ stages:
     deps:
     - path: configs/params.yaml
       hash: md5
-      md5: d5ad23411b0cbb4009c3ce547ab0bb08
-      size: 282
+      md5: cc73aae9e0f425c52162aec7e7a3f390
+      size: 766
     - path: data/processed/laudos_processed.csv
       hash: md5
       md5: da1a172303d22a0fbbe01ea67ded6980
       size: 18603
     - path: src/core/dataset.py
       hash: md5
-      md5: 58f3036abfa13ba7ab474d2f3ca825e4
-      size: 3070
+      md5: 65b36cb1a4d24e106e1e0406cc85a553
+      size: 3254
     - path: src/core/params.py
       hash: md5
-      md5: b306682644ed1afa94652b91bb35e5fd
-      size: 1792
+      md5: 5b2ba3a3ddc60731424d4ed254f339a2
+      size: 2833
+    - path: src/core/stopwords.py
+      hash: md5
+      md5: 0afa577de4edd306553d552ce9dc41a1
+      size: 680
     - path: src/train/run.py
       hash: md5
-      md5: 10a29dabbfffbda587991889f6703062
-      size: 3485
+      md5: d0aac325bdc5b4cdb7a4dbfbefcb59e4
+      size: 9095
     outs:
     - path: data/processed/test_split.csv
       hash: md5
@@ -54,12 +62,20 @@ stages:
       size: 3639
     - path: models/model.joblib
       hash: md5
-      md5: e150ef394933b723e3db599a97b97409
-      size: 277149
+      md5: 60989ba316347bf9b0f2fdf2326187d0
+      size: 286013
     - path: models/model.joblib.sha256
       hash: md5
-      md5: 0112ddfe6763ac9c58ea278b657bf4ca
+      md5: f2ff2a952f92ceec13af5d10b8b554ac
       size: 64
+    - path: reports/feature_importances.csv
+      hash: md5
+      md5: 0773556332f09fca75ac0e0d26f4a022
+      size: 7160
+    - path: reports/train_metrics.json
+      hash: md5
+      md5: bc29450e8aa9291ee9fe127d9d5f761b
+      size: 56
   avaliacao:
     cmd: uv run python -m src.evaluate.run
     deps:
@@ -69,20 +85,20 @@ stages:
       size: 3639
     - path: models/model.joblib
       hash: md5
-      md5: e150ef394933b723e3db599a97b97409
-      size: 277149
+      md5: 60989ba316347bf9b0f2fdf2326187d0
+      size: 286013
     - path: src/core/dataset.py
       hash: md5
-      md5: 58f3036abfa13ba7ab474d2f3ca825e4
-      size: 3070
+      md5: 65b36cb1a4d24e106e1e0406cc85a553
+      size: 3254
     - path: src/evaluate/run.py
       hash: md5
-      md5: 30d13699c1a6d36905d7c238c8b29f62
-      size: 2990
+      md5: 34126a5f43d560477ed7b68b346b676f
+      size: 6176
     - path: src/models/factory.py
       hash: md5
-      md5: 5ea5a0d7500aeb71af42e3498fef777b
-      size: 6993
+      md5: 9318a0bcfde33291f4ed8980935d4ecc
+      size: 8073
     - path: src/models/urgency.py
       hash: md5
       md5: c9285188d8676224a12fb3f604d0f50f
@@ -90,9 +106,13 @@ stages:
     outs:
     - path: reports/classification_report.txt
       hash: md5
-      md5: a0e5340ac270bd1dd27befe3e730dc11
+      md5: 1b369c7d0fa5605d564a7d5b8debd076
       size: 380
+    - path: reports/confusion_matrix.csv
+      hash: md5
+      md5: e1ffacf88998cae778481c4e71d054bd
+      size: 93
     - path: reports/metrics.json
       hash: md5
-      md5: 657757543e75d9886a6cf62e449e7c63
-      size: 72
+      md5: 6362d9493262497674bdda4116780678
+      size: 291

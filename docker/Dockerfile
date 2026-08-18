@@ -23,8 +23,13 @@ WORKDIR /app
 
 COPY --from=builder /build/.venv /app/.venv
 COPY src/ /app/src/
-COPY models/model.joblib /app/models/model.joblib
-COPY models/model.joblib.sha256 /app/models/model.joblib.sha256
+
+# O modelo NÃO é embutido na imagem: deve ser montado via volume.
+# Para um fallback offline, descomente as linhas abaixo com um modelo default:
+# COPY models/model.joblib /app/models/model.joblib
+# COPY models/model.joblib.sha256 /app/models/model.joblib.sha256
+# Crie o diretório para o volume do modelo:
+RUN mkdir -p /app/models
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app

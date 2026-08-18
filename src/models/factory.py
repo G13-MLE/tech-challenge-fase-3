@@ -6,9 +6,10 @@ de desserialização, verificação de integridade e inferência.
 """
 
 import hashlib
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Literal, Union
+from typing import Literal
 
 import joblib
 
@@ -17,9 +18,11 @@ from src.models.urgency import URGENCY_MAP, UrgencyLevel
 
 __all__ = ["ModelLoader", "JoblibLoader", "OnnxLoader", "create_model", "register_loader"]
 
+logger = logging.getLogger(__name__)
+
 ModelBackend = Literal["joblib", "onnx"]
 
-_LOADERS: dict[str, type["ModelLoader"]] = {}
+_LOADERS: dict[str, type[ModelLoader]] = {}
 
 
 def register_loader(name: str):
@@ -32,7 +35,7 @@ def register_loader(name: str):
         Decorator que registra a classe e a retorna inalterada.
     """
 
-    def decorator(cls: type["ModelLoader"]) -> type["ModelLoader"]:
+    def decorator(cls: type[ModelLoader]) -> type[ModelLoader]:
         _LOADERS[name] = cls
         return cls
 
@@ -47,7 +50,7 @@ class ModelLoader(ABC):
     """
 
     @abstractmethod
-    def load(self, path: Union[Path, str]) -> None:
+    def load(self, path: Path | str) -> None:
         """Carrega o modelo do caminho especificado.
 
         Args:
@@ -96,7 +99,7 @@ class JoblibLoader(ModelLoader):
     def __init__(self) -> None:
         self._model = None
 
-    def load(self, path: Union[Path, str]) -> None:
+    def load(self, path: Path | str) -> None:
         """Carrega o Pipeline sklearn do arquivo joblib com verificação de integridade.
 
         Args:
@@ -135,6 +138,28 @@ class JoblibLoader(ModelLoader):
         urgency = URGENCY_MAP[raw_label]
         return urgency, confidence
 
+    def predict_batch(self, texts: list[str]) -> list[tuple[UrgencyLevel, float]]:
+        """Realiza inferência em lote com vetorização nativa (uma chamada ao modelo).
+
+        Args:
+            texts: Lista de textos de laudos médicos (normalizados).
+
+        Returns:
+            Lista de tuplas (urgência, confiança).
+
+        Raises:
+            RuntimeError: Se o modelo não foi carregado.
+        """
+        if self._model is None:
+            raise RuntimeError("Modelo não carregado. Chame load() primeiro.")
+        probabilities = self._model.predict_proba(texts)
+        results: list[tuple[UrgencyLevel, float]] = []
+        for row in probabilities:
+            class_index = row.argmax()
+            raw_label = int(self._model.classes_[class_index])
+            results.append((URGENCY_MAP[raw_label], float(row[class_index])))
+        return results
+
 
 @register_loader("onnx")
 class OnnxLoader(ModelLoader):
@@ -144,14 +169,20 @@ class OnnxLoader(ModelLoader):
     poderá ser exportado para ONNX para inferência otimizada.
     """
 
-    def load(self, path: Union[Path, str]) -> None:
-        raise NotImplementedError("Backend ONNX será implementado na Etapa 4.")
+    def load(self, path: Path | str) -> None:
+        raise NotImplementedError(
+            "Backend ONNX ainda não implementado: exporte o modelo para ONNX "
+            "e use o backend 'onnx' na próxima etapa."
+        )
 
     def predict(self, text: str) -> tuple[UrgencyLevel, float]:
-        raise NotImplementedError("Backend ONNX será implementado na Etapa 4.")
+        raise NotImplementedError(
+            "Backend ONNX ainda não implementado: carregue o modelo com "
+            "backend 'joblib' ou implemente o carregador ONNX."
+        )
 
 
-def create_model(model_path: Union[Path, str], backend: ModelBackend = "joblib") -> ModelLoader:
+def create_model(model_path: Path | str, backend: ModelBackend = "joblib") -> ModelLoader:
     """Fábrica de carregadores de modelo.
 
     Args:
@@ -188,6 +219,11 @@ def _verify_model_hash(model_path: Path) -> None:
     hash_path = model_path.with_suffix(model_path.suffix + ".sha256")
 
     if not hash_path.exists():
+        logger.warning(
+            "Hash file %s not found — model integrity cannot be verified. "
+            "This is acceptable in development but should not occur in production.",
+            hash_path,
+        )
         return
 
     expected_hash = hash_path.read_text(encoding="utf-8").strip()
