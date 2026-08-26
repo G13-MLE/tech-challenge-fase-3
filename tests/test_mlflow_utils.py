@@ -31,8 +31,9 @@ class TestMlflowUtils:
         settings = Settings(mlflow_tracking_uri="")
         mlflow_log_artifact(settings, tmp_path / "inexistente.txt")
 
-    def test_mlflow_log_run_unreachable_uri_warns(self, tmp_path, caplog) -> None:
+    def test_mlflow_log_run_unreachable_uri_warns(self, tmp_path, caplog, monkeypatch) -> None:
         settings = Settings(mlflow_tracking_uri="http://localhost:1/unreachable")
         with caplog.at_level(logging.WARNING):
             # Não deve levantar exceção mesmo com servidor inacessível
             mlflow_log_run(settings, "teste", {}, {}, [])
+        monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
