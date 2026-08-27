@@ -15,7 +15,8 @@ PYTHON := uv run python
 	dvc-remote \
 	docker-build docker-run docker-train \
 	airflow-up airflow-down airflow-logs \
-	api-up api-down benchmark
+	api-up api-down benchmark \
+	monitoring-up monitoring-down monitoring-logs generate-traffic
 
 # ---------------------------------------------------------------------------
 # Help
@@ -53,6 +54,12 @@ help:
 	@echo "  make api-up          - Subir API em Docker (build + health check)"
 	@echo "  make api-down        - Parar API"
 	@echo "  make benchmark       - Benchmark de latência (P50/P95/P99, sobe API se necessário)"
+	@echo ""
+	@echo "Monitoramento:"
+	@echo "  make monitoring-up   - Subir API + Prometheus (perfil monitoring)"
+	@echo "  make monitoring-down  - Parar stack de monitoramento"
+	@echo "  make monitoring-logs - Logs da stack de monitoramento"
+	@echo "  make generate-traffic - Gerar tráfego para popular métricas"
 	@echo ""
 
 # ---------------------------------------------------------------------------
@@ -201,3 +208,40 @@ airflow-down:
 
 airflow-logs:
 	docker compose -f docker/docker-compose.yml --profile airflow logs -f
+
+# ---------------------------------------------------------------------------
+# Monitoramento (Prometheus)
+# ---------------------------------------------------------------------------
+monitoring-up: docker-build
+	@echo "Subindo stack API + Prometheus..."
+	docker compose -f docker/docker-compose.yml --env-file .env --profile monitoring up -d
+	@echo "Aguardando API ficar saudável..."
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)/health > /dev/null 2>&1; then \
+			echo "[OK] API saudível"; \
+			break; \
+		fi; \
+		sleep 2; \
+	done
+	@echo "Aguardando Prometheus ficar saudável..."
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$$(grep PROMETHEUS_PORT .env 2>/dev/null | cut -d= -f2 || echo 9090)/-/healthy > /dev/null 2>&1; then \
+			echo "[OK] Prometheus saudível"; \
+			break; \
+		fi; \
+		sleep 2; \
+	done
+	@echo "API:        http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)"
+	@echo "Métricas:   http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)/metrics"
+	@echo "Prometheus:  http://localhost:$$(grep PROMETHEUS_PORT .env 2>/dev/null | cut -d= -f2 || echo 9090)"
+
+monitoring-down:
+	@echo "Parando stack de monitoramento..."
+	docker compose -f docker/docker-compose.yml --profile monitoring down
+
+monitoring-logs:
+	docker compose -f docker/docker-compose.yml --profile monitoring logs -f
+
+generate-traffic:
+	@echo "Gerando tráfego para popular métricas Prometheus..."
+	PYTHONPATH=. uv run python scripts/generate_traffic.py

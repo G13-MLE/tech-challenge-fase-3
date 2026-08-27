@@ -304,7 +304,8 @@ class TestAPI:
         response = client_with_model.get("/metrics")
         assert response.status_code == status.HTTP_200_OK
         body = response.text
-        assert "http_requests_total" in body
+        assert "app_requests_total" in body
+        assert "app_request_latency_seconds" in body
         assert "predictions_total" in body
         assert "prediction_latency_seconds" in body
 
@@ -312,6 +313,11 @@ class TestAPI:
         client_with_model.post(PREDICT_PATH, json={"text": "paciente com pneumonia grave"})
         response = client_with_model.get("/metrics")
         assert 'predictions_total{urgency="urgente"' in response.text
+
+    def test_metrics_reflects_request_latency(self, client_with_model) -> None:
+        client_with_model.get("/health")
+        response = client_with_model.get("/metrics")
+        assert "app_request_latency_seconds" in response.text
 
     def test_metrics_endpoint_cors_headers(self, client_with_model) -> None:
         response = client_with_model.get("/metrics", headers={"Origin": "http://example.com"})

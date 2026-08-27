@@ -1,9 +1,10 @@
 """Aplicação FastAPI para triagem de urgência de laudos médicos.
 
-Expõe os endpoints /health, /predict e /predict/batch (versão 1 sob
+Expõe os endpoints /health, /metrics, /predict e /predict/batch (versão 1 sob
 /api/v1), carregando o modelo no startup via Factory Pattern (joblib)
 com verificação de integridade. Inclui middleware de logging, CORS,
-rate limit por IP e métricas Prometheus.
+rate limit por IP e métricas Prometheus (app_requests_total,
+app_request_latency_seconds, predictions_total, prediction_latency_seconds).
 
 A aplicação inicia em modo DEGRADADO se o modelo não puder ser
 carregado: /health retorna "degraded" e /predict responde 503.
@@ -24,7 +25,8 @@ from src.api.schemas import PredictBatchRequest, PredictRequest, PredictResponse
 from src.core.config import get_settings
 from src.core.dataset import MODEL_HASH_PATH
 from src.core.metrics import (
-    http_requests_total,
+    app_request_latency_seconds,
+    app_requests_total,
     prediction_latency_seconds,
     predictions_total,
 )
@@ -203,11 +205,16 @@ async def request_logging_middleware(request: Request, call_next):
         response.status_code,
         latency * 1000,
     )
-    http_requests_total.labels(
+    app_requests_total.labels(
         method=request.method,
-        path=request.url.path,
-        status=str(response.status_code),
+        endpoint=request.url.path,
+        http_status=str(response.status_code),
     ).inc()
+    app_request_latency_seconds.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        http_status=str(response.status_code),
+    ).observe(latency)
     return response
 
 
