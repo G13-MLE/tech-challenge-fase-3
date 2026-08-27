@@ -7,6 +7,28 @@ estágios do DVC, evitando literais espalhados pelo código.
 import csv
 from pathlib import Path
 
+__all__ = [
+    "DATA_RAW_PATH",
+    "DATA_PROCESSED_PATH",
+    "TEST_DATA_PATH",
+    "MODEL_PATH",
+    "MODEL_HASH_PATH",
+    "ONNX_MODEL_PATH",
+    "ONNX_MODEL_HASH_PATH",
+    "METRICS_PATH",
+    "REPORT_PATH",
+    "CONFUSION_MATRIX_PATH",
+    "FEATURE_IMPORTANCES_PATH",
+    "TRAIN_METRICS_PATH",
+    "TEXT_COLUMN",
+    "LABEL_COLUMN",
+    "EXPECTED_CLASSES",
+    "load_csv_records",
+    "save_csv_records",
+    "atomic_write_text",
+    "atomic_write_bytes",
+]
+
 DATA_RAW_PATH = Path("data/raw/laudos.csv")
 DATA_PROCESSED_PATH = Path("data/processed/laudos_processed.csv")
 TEST_DATA_PATH = Path("data/processed/test_split.csv")
