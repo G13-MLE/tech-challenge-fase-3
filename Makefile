@@ -139,10 +139,10 @@ data-synthetic:
 	@echo "[OK] dataset sintético gerado e registrado no DVC."
 
 data-kaggle:
-	@echo "Baixando dataset Kaggle (Medical Abstracts TC Corpus)..."
+	@echo "Baixando dataset Kaggle (Medical Abstracts TC)..."
 	PYTHONPATH=. uv run python scripts/download_data.py
-	uv run dvc add data/raw/medical_abstracts.csv
-	git add data/raw/medical_abstracts.csv.dvc
+	uv run dvc add data/raw/laudos.csv
+	git add data/raw/laudos.csv.dvc
 	@echo "[OK] dataset Kaggle baixado e registrado no DVC."
 
 # ---------------------------------------------------------------------------
