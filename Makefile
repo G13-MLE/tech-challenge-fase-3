@@ -56,7 +56,7 @@ help:
 	@echo "  make benchmark       - Benchmark de latência (P50/P95/P99, sobe API se necessário)"
 	@echo ""
 	@echo "Monitoramento:"
-	@echo "  make monitoring-up   - Subir API + Prometheus (perfil monitoring)"
+	@echo "  make monitoring-up   - Subir API + Prometheus + Grafana (perfil monitoring)"
 	@echo "  make monitoring-down  - Parar stack de monitoramento"
 	@echo "  make monitoring-logs - Logs da stack de monitoramento"
 	@echo "  make generate-traffic - Gerar tráfego para popular métricas"
@@ -213,7 +213,7 @@ airflow-logs:
 # Monitoramento (Prometheus)
 # ---------------------------------------------------------------------------
 monitoring-up: docker-build
-	@echo "Subindo stack API + Prometheus..."
+	@echo "Subindo stack API + Prometheus + Grafana..."
 	docker compose -f docker/docker-compose.yml --env-file .env --profile monitoring up -d
 	@echo "Aguardando API ficar saudável..."
 	@for i in $$(seq 1 30); do \
@@ -231,9 +231,18 @@ monitoring-up: docker-build
 		fi; \
 		sleep 2; \
 	done
+	@echo "Aguardando Grafana ficar saudável..."
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:$$(grep GRAFANA_PORT .env 2>/dev/null | cut -d= -f2 || echo 3000)/api/health > /dev/null 2>&1; then \
+			echo "[OK] Grafana saudível"; \
+			break; \
+		fi; \
+		sleep 2; \
+	done
 	@echo "API:        http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)"
 	@echo "Métricas:   http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)/metrics"
 	@echo "Prometheus:  http://localhost:$$(grep PROMETHEUS_PORT .env 2>/dev/null | cut -d= -f2 || echo 9090)"
+	@echo "Grafana:     http://localhost:$$(grep GRAFANA_PORT .env 2>/dev/null | cut -d= -f2 || echo 3000)"
 
 monitoring-down:
 	@echo "Parando stack de monitoramento..."

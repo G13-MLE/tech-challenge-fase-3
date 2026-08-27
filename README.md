@@ -120,6 +120,34 @@ make airflow-down
 
 A DAG `train_pipeline` executa semanalmente (`@weekly`) e reutiliza as funções de treino do pipeline DVC via `src/orchestration/training_tasks`.
 
+## Monitoramento (perfil monitoring)
+
+Stack Prometheus + Grafana containerizada. A API expõe `/metrics` com contadores e histogramas Prometheus; o Grafana provisiona automaticamente datasource e dashboard.
+
+### Subir a stack
+
+```bash
+make monitoring-up
+make generate-traffic
+```
+
+Aguardar os containers ficarem healthy. Acessar:
+
+| Serviço | URL |
+|---|---|
+| API | http://localhost:8000 |
+| Métricas | http://localhost:8000/metrics |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (admin / `$GRAFANA_ADMIN_PASSWORD`) |
+
+O dashboard "Triage API" é provisionado automaticamente com 3 painéis: taxa de requisições, latência P95 e taxa de erro (5xx).
+
+### Parar a stack
+
+```bash
+make monitoring-down
+```
+
 ### Endpoints
 
 | Método | Rota | Descrição |
@@ -176,3 +204,9 @@ make help
 | `make benchmark` | Benchmark de latência |
 | `make docker-build` | Construir imagem Docker |
 | `make docker-run` | Rodar API em container |
+| `make docker-train` | Pipeline DVC no container (perfil train) |
+| `make airflow-up` | Subir stack Airflow + MLflow |
+| `make airflow-down` | Parar stack Airflow |
+| `make monitoring-up` | Subir API + Prometheus + Grafana |
+| `make monitoring-down` | Parar stack de monitoramento |
+| `make generate-traffic` | Gerar tráfego para popular métricas |
