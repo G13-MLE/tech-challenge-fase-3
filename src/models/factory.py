@@ -135,7 +135,7 @@ class JoblibLoader(ModelLoader):
         probabilities = self._model.predict_proba([text])[0]
         class_index = probabilities.argmax()
         raw_label = int(self._model.classes_[class_index])
-        confidence = float(probabilities[class_index])
+        confidence = min(1.0, max(0.0, float(probabilities[class_index])))
         urgency = URGENCY_MAP[raw_label]
         return urgency, confidence
 
@@ -158,7 +158,7 @@ class JoblibLoader(ModelLoader):
         for row in probabilities:
             class_index = row.argmax()
             raw_label = int(self._model.classes_[class_index])
-            results.append((URGENCY_MAP[raw_label], float(row[class_index])))
+            results.append((URGENCY_MAP[raw_label], min(1.0, max(0.0, float(row[class_index])))))
         return results
 
 
@@ -215,7 +215,7 @@ class OnnxLoader(ModelLoader):
         labels = outputs[0]
         probas = outputs[1]
         raw_label = int(labels[0])
-        confidence = float(probas[0].max())
+        confidence = min(1.0, max(0.0, float(probas[0].max())))
         urgency = URGENCY_MAP[raw_label]
         return urgency, confidence
 
@@ -240,7 +240,7 @@ class OnnxLoader(ModelLoader):
         results: list[tuple[UrgencyLevel, float]] = []
         for i in range(len(texts)):
             raw_label = int(labels[i])
-            confidence = float(probas[i].max())
+            confidence = min(1.0, max(0.0, float(probas[i].max())))
             urgency = URGENCY_MAP[raw_label]
             results.append((urgency, confidence))
         return results

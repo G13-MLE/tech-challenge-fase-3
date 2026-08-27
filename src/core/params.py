@@ -22,7 +22,10 @@ class TrainParams(BaseModel):
         test_size: Proporção do conjunto de teste.
         classifier: Tipo de classificador ('random_forest' ou 'logistic_regression').
         random_forest_n_estimators: Número de árvores do RandomForest.
-        random_forest_class_weight: Estratégia de peso das classes ('balanced' ou None).
+        random_forest_class_weight: Estratégia de peso das classes do RandomForest
+            ('balanced' ou None).
+        logistic_regression_class_weight: Estratégia de peso das classes da
+            regressão logística ('balanced' ou None).
         logistic_regression_C: Inverso da regularização da regressão logística.
         logistic_regression_max_iter: Número máximo de iterações da regressão logística.
         tfidf_max_features: Número máximo de features do TF-IDF.
@@ -32,7 +35,7 @@ class TrainParams(BaseModel):
             Inteiro = contagem absoluta; float = fração dos documentos.
         tfidf_max_df: Frequência máxima de documentos para um termo.
             Inteiro = contagem absoluta; float = fração dos documentos.
-        tfidf_stopwords: Se True, usa a lista de stopwords em português.
+        tfidf_stopwords: Se True, usa a lista de stopwords em inglês.
             Alternativamente, pode ser uma lista de stopwords customizada.
         cv_folds: Número de folds para cross-validation (0 desativa).
     """
@@ -42,6 +45,7 @@ class TrainParams(BaseModel):
     classifier: Literal["random_forest", "logistic_regression"] = "random_forest"
     random_forest_n_estimators: int = Field(ge=1)
     random_forest_class_weight: str | None = "balanced"
+    logistic_regression_class_weight: str | None = "balanced"
     logistic_regression_C: float = Field(gt=0, default=1.0)  # noqa: N815
     logistic_regression_max_iter: int = Field(ge=100, default=1000)
     tfidf_max_features: int = Field(ge=1)
@@ -49,7 +53,7 @@ class TrainParams(BaseModel):
     tfidf_sublinear_tf: bool = True
     tfidf_min_df: int | float = 2
     tfidf_max_df: int | float = 0.95
-    tfidf_stopwords: bool | list[str] = True
+    tfidf_stopwords: bool | list[str] = False
     cv_folds: int = Field(ge=0, default=5)
 
 

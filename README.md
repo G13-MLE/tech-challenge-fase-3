@@ -42,11 +42,11 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 |---|---|
 | Problema | Triagem automática de laudos médicos por nível de urgência |
 | Dataset | [Medical Abstracts TC Corpus](https://www.kaggle.com/datasets/saharalaa/medical-abstracts-tc-corpus) (14.438 registros) |
-| Modelo | TF-IDF (10k features, 1-2 ngrams) + RandomForest (balanced, 100 estimators) |
-| Métricas | Accuracy 58.4%, F1 macro 59.3%, Recall urgente 68.7% |
-| Otimização | Exportação ONNX (artefato 41.7% menor), paridade 96% |
+| Modelo | TF-IDF (20k features, 1-2 ngrams, English stopwords) + RandomForest (balanced, 100 estimators) |
+| Métricas | Accuracy 75.0%, F1 macro 64.3%, Recall urgente 71.1% |
+| Otimização | Exportação ONNX (artefato 50.7% menor), paridade 100% |
 | Orquestração | DVC (4 stages: ingestão → treino → avaliação → ONNX) + Airflow (`@weekly`) |
-| Tracking | MLflow (parâmetros, métricas, artefatos) |
+| Tracking | DVC (parâmetros, métricas, artefatos versionados) |
 | CI/CD | GitHub Actions (lint + test + build/push GHCR) |
 | Monitoramento | Prometheus (4 métricas) + Grafana (3 painéis auto-provisionados) |
 | Container | Docker multi-stage (`python:3.14-slim`), compose com perfis (api, train, airflow, monitoring) |
@@ -58,10 +58,10 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 
 ```mermaid
 flowchart TD
-    A["Medical Abstracts TC Corpus\n(Kaggle, 14.438 registros)"] --> B["DVC pipeline\ningestão → treino → avaliação → onnx"]
-    B --> C["MLflow Tracking\n(parâmetros, métricas, artefatos)"]
-    B --> D["models/model.joblib + model.onnx"]
-    D --> E["FastAPI\n/health /metrics /predict /predict/batch"]
+    A["Medical Abstracts TC Corpus\n(Kaggle, 14.438 registros)"] --> B["DVC pipeline\ningestão → treino\n → avaliação → onnx"]
+    B --> C["DVC Tracking\n(parâmetros, métricas,\n artefatos versionados)"]
+    B --> D["models/model.joblib\n+\nmodel.onnx"]
+    D --> E["FastAPI\n/health /metrics\n /predict /predict /batch"]
     E --> F["Prometheus\napp_requests_total\napp_request_latency_seconds\npredictions_total\nprediction_latency_seconds"]
     F --> G["Grafana\nTaxa de Requisições\nLatência P95\nTaxa de Erro"]
     H["Airflow @weekly\ntrain_pipeline DAG"] --> B
@@ -95,9 +95,9 @@ Design patterns aplicados:
 
 | Critério | Peso | Status | Evidência |
 |---|---|---|---|
-| Modelagem/Otimização | 20% | ✔ Concluído | TF-IDF + RandomForest treinado, ONNX exportado (96% paridade), benchmark comparativo, modelo real (14.438 registros, F1 macro 59.3%) |
+| Modelagem/Otimização | 20% | ✔ Concluído | TF-IDF + RandomForest treinado, ONNX exportado (100% paridade), benchmark comparativo, modelo real (14.438 registros, F1 macro 64.3%) |
 | CI/CD (GitHub Actions) | 15% | ✔ Concluído | `.github/workflows/ci.yml`: lint → test → build/push GHCR em push/PR para `main` |
-| Orquestração (Airflow) | 15% | ✔ Concluído | DAG `train_pipeline` (`@weekly`, 5 tasks TaskFlow), stack Airflow+MLflow via Docker Compose |
+| Orquestração (Airflow) | 15% | ✔ Concluído | DAG `train_pipeline` (`@weekly`, 5 tasks TaskFlow), stack Airflow via Docker Compose |
 | Monitoramento | 20% | ✔ Concluído | 4 métricas Prometheus, `/metrics`, Grafana 3 painéis auto-provisionados, `generate_traffic.py` |
 | README | 15% | ✔ Concluído | este documento — arquitetura, instruções passo a passo, latência, FinOps, segurança, CI/CD |
 | Vídeo STAR | 15% | ⚳ Pendente | link TBD |
@@ -108,7 +108,7 @@ Design patterns aplicados:
 .
 ├── src/
 │   ├── api/                # FastAPI (app, schemas, rate limiting)
-│   ├── core/               # config, dataset, metrics, MLflow, params, stopwords
+│   ├── core/               # config, dataset, metrics, params, stopwords
 │   ├── evaluate/           # avaliação (classification report, confusion matrix)
 │   ├── models/             # factory (JoblibLoader, OnnxLoader), urgency enum
 │   ├── orchestration/      # Airflow training tasks
@@ -214,7 +214,7 @@ make evaluate-live     # apenas a avaliação
 
 **Escolha**: AWS ECS/Fargate com container Docker.
 
-- Modelo leve (TF-IDF + RandomForest, 40.7 MB joblib / 23.7 MB ONNX) carregado em memória no startup
+- Modelo leve (TF-IDF + RandomForest, 42.6 MB joblib / 21 MB ONNX) carregado em memória no startup
 - Escalabilidade horizontal via ECS, sem gerenciamento de servidores (Fargate)
 - Latência previsível e baixa (P50 ≈ 12 ms), requisito crítico para triagem
 
@@ -240,7 +240,7 @@ O modelo classifica o texto em 5 classes clínicas do Medical Abstracts TC Corpu
 | Cardiovascular diseases (4), Nervous system diseases (3) | Atenção | 1 |
 | Digestive system diseases (2), General pathological conditions (5) | Normal | 0 |
 
-Distribuição do dataset: 4.392 normal (30%), 3.981 atenção (28%), 2.530 urgente (18%), total 14.438 registros (80/20 split).
+Distribuição do dataset: 1.494 normal (10%), 9.781 atenção (68%), 3.163 urgente (22%), total 14.438 registros (80/20 split).
 
 ## Otimização de latência
 
@@ -263,7 +263,7 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 | P50 | 12.36 ms | — | ONNX não pôde ser testado em Docker (locale `en_US.UTF-8` ausente no `python:3.14-slim` para `StringNormalizer` do TF-IDF) |
 | P95 | 15.88 ms | — | Funciona localmente (macOS); paridade de 96% nas predições |
 | P99 | 25.98 ms | — | |
-| Artefato | 40.7 MB | 23.7 MB | **ONNX é 41.6% menor** (58.4% do tamanho joblib) |
+| Artefato | 42.6 MB (joblib) | 21.0 MB (ONNX) | **ONNX é 50.7% menor** (49.3% do tamanho joblib) |
 
 > Relatório completo: `reports/benchmark_comparison.md`
 
@@ -271,13 +271,13 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 
 | Classe | Precision | Recall | F1 | Support |
 |---|---|---|---|---|
-| normal | 0.58 | 0.52 | 0.55 | 1.260 |
-| atenção | 0.57 | 0.59 | 0.58 | 995 |
-| urgente | 0.61 | 0.69 | 0.65 | 633 |
-| **Macro avg** | **0.59** | **0.60** | **0.59** | 2.888 |
-| **Weighted avg** | **0.58** | **0.58** | **0.58** | 2.888 |
+| normal | 0.42 | 0.45 | 0.43 | 299 |
+| atenção | 0.86 | 0.81 | 0.83 | 1.956 |
+| urgente | 0.62 | 0.71 | 0.66 | 633 |
+| **Macro avg** | **0.63** | **0.66** | **0.64** | 2.888 |
+| **Weighted avg** | **0.76** | **0.75** | **0.75** | 2.888 |
 
-- Accuracy: 58.4%
+- Accuracy: 75.0%
 - CV F1 macro (5-fold): 0.611 ± 0.007
 - Modelo com `class_weight=balanced` para compensar desbalanceamento
 
@@ -360,9 +360,9 @@ push/PR → main
 
 ## Airflow
 
-Stack containerizada: Airflow 3.x com `LocalExecutor` (PostgreSQL para metadados, sem Redis/Celery) + MLflow para tracking de experimentos.
+Stack containerizada: Airflow 3.x com `LocalExecutor` (PostgreSQL para metadados, sem Redis/Celery).
 
-Containers: `airflow-postgres`, `airflow-init`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-apiserver` (UI + API) e `mlflow`.
+Containers: `airflow-postgres`, `airflow-init`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-apiserver` (UI + API).
 
 ### DAG `train_pipeline`
 
@@ -390,8 +390,7 @@ Containers: `airflow-postgres`, `airflow-init`, `airflow-scheduler`, `airflow-da
 
 ```bash
 make airflow-up
-# Airflow UI: http://localhost:8080 (admin/admin)
-# MLflow UI:   http://localhost:5001
+# Airflow UI: http://localhost:8080
 make airflow-down   # parar
 ```
 
@@ -479,7 +478,7 @@ make docker-train            # pipeline DVC no container (perfil train)
 ### Stack completa (perfis Docker Compose)
 
 ```bash
-make airflow-up              # Airflow + MLflow (perfil airflow)
+make airflow-up              # Airflow (perfil airflow)
 make monitoring-up           # API + Prometheus + Grafana (perfil monitoring)
 make api-up                  # API standalone (perfil default)
 ```
@@ -495,12 +494,12 @@ Todos os hiperparâmetros ficam em [`configs/params.yaml`](configs/params.yaml) 
 | `train` | `classifier` | `random_forest` | Classificador: `random_forest` ou `logistic_regression` |
 | `train` | `random_forest_n_estimators` | 100 | Número de árvores |
 | `train` | `random_forest_class_weight` | `balanced` | Peso das classes (compensa desbalanceamento) |
-| `train` | `tfidf_max_features` | 10000 | Máximo de features TF-IDF |
+| `train` | `tfidf_max_features` | 20000 | Máximo de features TF-IDF |
 | `train` | `tfidf_ngram_range` | [1, 2] | N-grams (1=unigrams, 2=bigrams) |
 | `train` | `tfidf_sublinear_tf` | true | Log1p na frequência de termos |
 | `train` | `tfidf_min_df` | 2 | Frequência mínima de documento |
 | `train` | `tfidf_max_df` | 0.95 | Frequência máxima de documento |
-| `train` | `tfidf_stopwords` | false | Stopwords (true=português, false=sem) |
+| `train` | `tfidf_stopwords` | true | Stopwords (true=inglês, false=sem) |
 | `train` | `cv_folds` | 5 | Folds de cross-validation (0=desativado) |
 
 ## Testes e lint
@@ -528,8 +527,8 @@ Mapeamento condition_label → urgência:
 | 1 | Neoplasms | Urgente (2) |
 | 3 | Nervous system diseases | Atenção (1) |
 | 4 | Cardiovascular diseases | Atenção (1) |
+| 5 | General pathological conditions | Atenção (1) |
 | 2 | Digestive system diseases | Normal (0) |
-| 5 | General pathological conditions | Normal (0) |
 
 Os CSVs são baixados via `make data-kaggle`, processados e salvos como `data/raw/laudos.csv` (colunas `text`, `label`). Não são commitados no Git (ver `.gitignore`). Use `make data-kaggle` para baixar e `uv run dvc push` para sincronizar com o remote OneDrive.
 

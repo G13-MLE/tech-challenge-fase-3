@@ -33,9 +33,8 @@ from src.core.dataset import (
     load_csv_records,
     save_csv_records,
 )
-from src.core.mlflow_utils import mlflow_log_run
 from src.core.params import TrainParams, load_params
-from src.core.stopwords import PORTUGUESE_STOPWORDS
+from src.core.stopwords import ENGLISH_STOPWORDS
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ def resolve_stopwords(params: TrainParams) -> list[str] | None:
     if isinstance(params.tfidf_stopwords, list):
         return params.tfidf_stopwords
     if params.tfidf_stopwords is True:
-        return PORTUGUESE_STOPWORDS
+        return ENGLISH_STOPWORDS
     return None
 
 
@@ -85,7 +84,7 @@ def build_pipeline(params: TrainParams) -> Pipeline:
             C=params.logistic_regression_C,
             max_iter=params.logistic_regression_max_iter,
             random_state=params.seed,
-            class_weight=params.random_forest_class_weight,
+            class_weight=params.logistic_regression_class_weight,
         )
     else:
         clf = RandomForestClassifier(
@@ -251,21 +250,6 @@ def train_and_save(
     if train_metrics_path is None:
         train_metrics_path = TRAIN_METRICS_PATH
 
-    try:
-        import mlflow
-
-        mlflow.sklearn.autolog(disable=True)
-    except ImportError:
-        pass
-
-    settings = None
-    try:
-        from src.core.config import get_settings
-
-        settings = get_settings()
-    except Exception:  # pragma: no cover
-        logger.warning("Não foi possível carregar Settings para MLflow.")
-
     texts, labels = load_csv_records(data_path)
     train_texts, test_texts, train_labels, test_labels = train_test_split(
         texts,
@@ -286,18 +270,6 @@ def train_and_save(
         save_train_metrics(cv_metrics, train_metrics_path)
     logger.info("Treinamento concluído: modelo salvo em %s", model_path)
     logger.info("Split de teste salvo em %s", test_data_path)
-    if settings is not None:
-        mlflow_log_run(
-            settings,
-            "treino",
-            params=params.model_dump(mode="json"),
-            metrics=cv_metrics,
-            artifacts=[
-                model_path,
-                model_hash_path,
-                feature_importances_path,
-            ],
-        )
     return model_path
 
 

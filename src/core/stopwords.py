@@ -1,11 +1,15 @@
-"""Stopwords em português para o TF-IDF.
+"""Stopwords para o TF-IDF.
 
-Lista minimalista de conectivos e artigos mais frequentes em laudos
-médicos em português. Pode ser substituída por uma lista completa via
-`configs/params.yaml` (`tfidf_stopwords`).
+Fornece listas de stopwords em português e inglês. O dataset
+Medical Abstracts TC Corpus é em inglês, mas a lista em português
+é mantida para compatibilidade com dados legados.
+
+O parâmetro `tfidf_stopwords` em `configs/params.yaml` controla qual
+lista usar: `true` = inglês, `false` = sem stopwords, ou uma lista
+customizada.
 """
 
-__all__ = ["PORTUGUESE_STOPWORDS"]
+__all__ = ["PORTUGUESE_STOPWORDS", "ENGLISH_STOPWORDS"]
 
 PORTUGUESE_STOPWORDS: list[str] = [
     "de",
@@ -43,4 +47,85 @@ PORTUGUESE_STOPWORDS: list[str] = [
     "ha",
     "num",
     "numa",
+]
+
+ENGLISH_STOPWORDS: list[str] = [
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "been",
+    "by",
+    "can",
+    "could",
+    "did",
+    "do",
+    "does",
+    "for",
+    "from",
+    "had",
+    "has",
+    "have",
+    "he",
+    "her",
+    "his",
+    "how",
+    "i",
+    "if",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "may",
+    "me",
+    "might",
+    "my",
+    "no",
+    "not",
+    "of",
+    "on",
+    "or",
+    "our",
+    "shall",
+    "she",
+    "should",
+    "so",
+    "some",
+    "such",
+    "than",
+    "that",
+    "the",
+    "their",
+    "them",
+    "then",
+    "there",
+    "these",
+    "they",
+    "this",
+    "those",
+    "through",
+    "to",
+    "too",
+    "upon",
+    "us",
+    "was",
+    "we",
+    "were",
+    "what",
+    "when",
+    "where",
+    "which",
+    "while",
+    "who",
+    "whom",
+    "why",
+    "will",
+    "with",
+    "would",
+    "you",
+    "your",
 ]

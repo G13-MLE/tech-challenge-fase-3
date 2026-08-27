@@ -9,7 +9,7 @@ Mapeamento condition_label → urgência:
   - 3 (nervous system diseases) → atenção (1)
   - 4 (cardiovascular diseases) → atenção (1)
   - 2 (digestive system diseases) → normal (0)
-  - 5 (general pathological conditions) → normal (0)
+  - 5 (general pathological conditions) → atenção (1)
 
 Uso:
     uv run python scripts/download_data.py
@@ -43,7 +43,7 @@ CONDITION_LABEL_TO_URGENCY: dict[int, int] = {
     2: 0,
     3: 1,
     4: 1,
-    5: 0,
+    5: 1,
 }
 
 LABEL_NAMES: dict[int, str] = {
@@ -59,7 +59,7 @@ CLINICAL_TO_URGENCY: dict[str, int] = {
     "nervous system diseases": 1,
     "cardiovascular diseases": 1,
     "digestive system diseases": 0,
-    "general pathological conditions": 0,
+    "general pathological conditions": 1,
 }
 
 URGENCY_NAMES: dict[int, str] = {

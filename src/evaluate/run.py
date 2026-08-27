@@ -26,7 +26,6 @@ from src.core.dataset import (
     atomic_write_text,
     load_csv_records,
 )
-from src.core.mlflow_utils import mlflow_log_run
 from src.models.factory import create_model
 from src.models.urgency import URGENCY_MAP
 
@@ -156,18 +155,6 @@ def run_evaluation(
         metrics["f1"],
         metrics["recall_urgente"],
     )
-    try:
-        from src.core.config import get_settings
-
-        mlflow_log_run(
-            get_settings(),
-            "avaliacao",
-            params={"model_path": str(model_path)},
-            metrics=metrics,
-            artifacts=[metrics_path, report_path, confusion_matrix_path],
-        )
-    except Exception:  # pragma: no cover
-        logger.warning("Falha ao registrar avaliação no MLflow (ignorado).", exc_info=True)
     return metrics
 
 

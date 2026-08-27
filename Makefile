@@ -47,7 +47,7 @@ help:
 	@echo "  make docker-build - Construir imagem Docker da API"
 	@echo "  make docker-run   - Rodar API em container Docker"
 	@echo "  make docker-train - Rodar pipeline DVC dentro do container (perfil train)"
-	@echo "  make airflow-up   - Subir stack Airflow + MLflow (perfil airflow)"
+	@echo "  make airflow-up   - Subir stack Airflow (perfil airflow)"
 	@echo "  make airflow-down - Parar stack Airflow"
 	@echo "  make airflow-logs - Logs da stack Airflow"
 	@echo ""
@@ -201,8 +201,9 @@ docker-run: docker-build
 	@echo "API disponível em http://localhost:$$(grep API_PORT .env 2>/dev/null | cut -d= -f2 || echo 8000)"
 	@echo "Para parar: docker compose -f docker/docker-compose.yml down"
 
-docker-train: data-synthetic
+docker-train:
 	@echo "Docker: Rodando pipeline DVC completo no container (perfil train)..."
+	@echo "AVISO: usa o dataset atual em data/raw/laudos.csv (não regenera sintético)."
 	docker compose -f docker/docker-compose.yml --env-file .env --profile train run --rm train
 	@echo "[OK] Pipeline concluído."
 
@@ -210,10 +211,9 @@ docker-train: data-synthetic
 # Airflow
 # ---------------------------------------------------------------------------
 airflow-up:
-	@echo "Subindo stack Airflow + MLflow..."
+	@echo "Subindo stack Airflow..."
 	docker compose -f docker/docker-compose.yml --env-file .env --profile airflow up -d --build
 	@echo "Airflow UI: http://localhost:$$(grep AIRFLOW_PORT .env 2>/dev/null | cut -d= -f2 || echo 8080)"
-	@echo "MLflow UI:   http://localhost:$$(grep MLFLOW_PORT .env 2>/dev/null | cut -d= -f2 || echo 5001)"
 
 airflow-down:
 	@echo "Parando stack Airflow..."

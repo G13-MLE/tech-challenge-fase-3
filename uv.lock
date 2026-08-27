@@ -3656,7 +3656,6 @@ dependencies = [
     { name = "fastapi" },
     { name = "joblib" },
     { name = "kagglehub" },
-    { name = "mlflow" },
     { name = "onnxruntime" },
     { name = "prometheus-client" },
     { name = "pydantic-settings" },
@@ -3665,6 +3664,11 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "skl2onnx" },
     { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+mlflow = [
+    { name = "mlflow" },
 ]
 
 [package.dev-dependencies]
@@ -3682,7 +3686,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "joblib", specifier = ">=1.4.0" },
     { name = "kagglehub", specifier = ">=0.3.0" },
-    { name = "mlflow", specifier = ">=2.20.0" },
+    { name = "mlflow", marker = "extra == 'mlflow'", specifier = ">=2.20.0" },
     { name = "onnxruntime", specifier = ">=1.18.0" },
     { name = "prometheus-client", specifier = ">=0.21.0" },
     { name = "pydantic-settings", specifier = ">=2.8.0" },
@@ -3692,6 +3696,7 @@ requires-dist = [
     { name = "skl2onnx", specifier = ">=1.17.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
 ]
+provides-extras = ["mlflow"]
 
 [package.metadata.requires-dev]
 dev = [
