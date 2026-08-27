@@ -44,7 +44,7 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 | Dataset | [Medical Abstracts TC Corpus](https://www.kaggle.com/datasets/saharalaa/medical-abstracts-tc-corpus) (14.438 registros) |
 | Modelo | TF-IDF (20k features, 1-2 ngrams, English stopwords) + RandomForest (balanced, 100 estimators) |
 | Métricas | Accuracy 75.0%, F1 macro 64.3%, Recall urgente 71.1% |
-| Otimização | Exportação ONNX (artefato 50.7% menor), paridade 100% |
+| Otimização | Exportação ONNX (artefato 41.3% menor), paridade 100% |
 | Orquestração | DVC (4 stages: ingestão → treino → avaliação → ONNX) + Airflow (`@weekly`) |
 | Tracking | DVC (parâmetros, métricas, artefatos versionados) |
 | CI/CD | GitHub Actions (lint + test + build/push GHCR) |
@@ -52,7 +52,7 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 | Container | Docker multi-stage (`python:3.14-slim`), compose com perfis (api, train, airflow, monitoring) |
 | Build | uv + `pyproject.toml` com deps prod/dev separadas |
 | Lint | ruff + pre-commit |
-| Testes | pytest (134 testes) |
+| Testes | pytest (129 testes) |
 
 ## Arquitetura
 
@@ -116,7 +116,7 @@ Design patterns aplicados:
 │   ├── train/              # treino (RandomForest/LogisticRegression), exportação ONNX
 │   ├── utils/
 │   └── validate/           # validação de dados brutos
-├── tests/                  # 134 testes pytest
+├── tests/                  # 129 testes pytest
 ├── dags/                   # Airflow DAG (train_pipeline)
 ├── docker/                 # Dockerfile, docker-compose.yml, airflow.Dockerfile
 ├── configs/                # params.yaml, prometheus.yml, Grafana provisioning
@@ -214,9 +214,9 @@ make evaluate-live     # apenas a avaliação
 
 **Escolha**: AWS ECS/Fargate com container Docker.
 
-- Modelo leve (TF-IDF + RandomForest, 42.6 MB joblib / 21 MB ONNX) carregado em memória no startup
+- Modelo leve (TF-IDF + RandomForest, 37.44 MB joblib / 21.96 MB ONNX) carregado em memória no startup
 - Escalabilidade horizontal via ECS, sem gerenciamento de servidores (Fargate)
-- Latência previsível e baixa (P50 ≈ 12 ms), requisito crítico para triagem
+- Latência previsível e baixa (P50 ≈ 10.77 ms), requisito crítico para triagem
 
 ### Tecnologia
 
@@ -237,10 +237,16 @@ O modelo classifica o texto em 5 classes clínicas do Medical Abstracts TC Corpu
 | Classe clínica (condition_label) | Urgência | Label |
 |---|---|---|
 | Neoplasms (1) | Urgente | 2 |
-| Cardiovascular diseases (4), Nervous system diseases (3) | Atenção | 1 |
-| Digestive system diseases (2), General pathological conditions (5) | Normal | 0 |
+| Cardiovascular diseases (4), Nervous system diseases (3), General pathological conditions (5) | Atenção | 1 |
+| Digestive system diseases (2) | Normal | 0 |
 
-Distribuição do dataset: 1.494 normal (10%), 9.781 atenção (68%), 3.163 urgente (22%), total 14.438 registros (80/20 split).
+Distribuição do dataset: 1.494 normal (10,3%), 9.781 atenção (67,7%), 3.163 urgente (21,9%), total 14.438 registros (80/20 split).
+
+> **Dataset sintético** (`make data-synthetic`): fallback para desenvolvimento sem
+> Kaggle, gera 180 laudos em português com 3 classes de urgência diretas
+> (0=normal: asma/hérnia, 1=atenção: diabetes/hipertensão, 2=urgente: pneumonia).
+> O esquema de saída (colunas `text`, `label` ∈ {0,1,2}) é idêntico ao dataset real,
+> permitindo rodar o pipeline completo sem credenciais Kaggle.
 
 ## Otimização de latência
 
@@ -252,20 +258,27 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 
 | Percentil | Latência |
 |---|---|
-| P50 | 12.36 ms |
-| P95 | 15.88 ms |
-| P99 | 25.98 ms |
+| P50 | 10.77 ms |
+| P95 | 12.34 ms |
+| P99 | 46.97 ms |
 
 #### Comparativo joblib vs ONNX
 
-| Métrica | joblib | ONNX | Observação |
+| Métrica | joblib | ONNX | Δ |
 |---|---|---|---|
-| P50 | 12.36 ms | — | ONNX não pôde ser testado em Docker (locale `en_US.UTF-8` ausente no `python:3.14-slim` para `StringNormalizer` do TF-IDF) |
-| P95 | 15.88 ms | — | Funciona localmente (macOS); paridade de 96% nas predições |
-| P99 | 25.98 ms | — | |
-| Artefato | 42.6 MB (joblib) | 21.0 MB (ONNX) | **ONNX é 50.7% menor** (49.3% do tamanho joblib) |
+| P50 | 10.77 ms | 9.13 ms | -1.64 ms (-15.2%) |
+| P95 | 12.34 ms | 13.02 ms | +0.68 ms (+5.5%) |
+| P99 | 46.97 ms | 18.58 ms | -28.39 ms (-60.4%) |
+| min | 9.58 ms | 6.32 ms | -3.26 ms (-34.0%) |
+| max | 47.24 ms | 18.59 ms | -28.66 ms (-60.7%) |
+| Artefato | 37.44 MB | 21.96 MB | **ONNX é 41.3% menor** (58.7% do tamanho joblib) |
 
 > Relatório completo: `reports/benchmark_comparison.md`
+>
+> **Nota**: P50 e P99 do ONNX são inferiores ao joblib (melhoria de 15.2% e 60.4%
+> respectivamente); P95 do ONNX é marginalmente superior (+5.5%) devido à
+> variabilidade da primeira inferência após o warmup. A paridade de predição
+> entre joblib e ONNX é de 100% (threshold de 95%).
 
 ### Métricas do modelo (teste, 2.888 amostras)
 
@@ -278,7 +291,7 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 | **Weighted avg** | **0.76** | **0.75** | **0.75** | 2.888 |
 
 - Accuracy: 75.0%
-- CV F1 macro (5-fold): 0.611 ± 0.007
+- CV F1 macro (5-fold): 0.650 ± 0.008
 - Modelo com `class_weight=balanced` para compensar desbalanceamento
 
 ## FinOps — Estimativa de custos AWS
@@ -311,7 +324,7 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 - **Spot instances/Fargate Spot**: até 70% de desconto para tasks tolerantes a interrupção
 - **Graviton2 (ARM64)**: até 20% melhor custo/desempenho que x86
 - **Reserva de capacity**: Savings Plans para cargas previsíveis (1 ano: ≈ 20% desconto)
-- **Modelo leve**: 23.7 MB ONNX permite instâncias menores (0.25 vCPU) sem impacto perceptível
+- **Modelo leve**: 21.96 MB ONNX permite instâncias menores (0.25 vCPU) sem impacto perceptível
 
 ## Segurança
 
@@ -344,7 +357,7 @@ Workflow GitHub Actions (`.github/workflows/ci.yml`) com 3 jobs:
 push/PR → main
     │
     ├── lint   ── ruff check + ruff format --check
-    ├── test   ── pytest (134 testes)
+    ├── test   ── pytest (129 testes)
     └── build  ── Docker build + push para ghcr.io (após lint+test)
 ```
 
@@ -505,7 +518,7 @@ Todos os hiperparâmetros ficam em [`configs/params.yaml`](configs/params.yaml) 
 ## Testes e lint
 
 ```bash
-make test      # uv run pytest (134 testes)
+make test      # uv run pytest (129 testes)
 make lint      # uv run ruff check . + ruff format --check .
 make format    # uv run ruff format .
 ```
@@ -540,7 +553,7 @@ Os CSVs são baixados via `make data-kaggle`, processados e salvos como `data/ra
 > - **Situation**: Hospital de referência precisa de triagem automática de laudos médicos
 > - **Task**: Requisitos da fase (latência < 50ms, CI/CD, Airflow, monitoramento)
 > - **Action**: Arquitetura ECS/Fargate, pipeline DVC 4 stages, ONNX para otimização, Prometheus+Grafana
-> - **Result**: Demo do pipeline funcionando, latência P95=15.88ms, dashboard Grafana, CI verde
+> - **Result**: Demo do pipeline funcionando, latência P95=12.34ms (joblib), P99 ONNX 60.4% mais rápido, dashboard Grafana, CI verde
 
 ## Créditos
 

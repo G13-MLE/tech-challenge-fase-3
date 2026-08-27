@@ -2,8 +2,7 @@
 
 Carrega os dados processados, treina um Pipeline TF-IDF + classificador
 (RandomForest ou LogisticRegression) com seeds fixos e salva o artefato
-em `models/model.joblib`. Registra parâmetros, métricas e artefatos no
-MLflow (autolog + logging manual de artefatos).
+em `models/model.joblib`.
 """
 
 import hashlib
@@ -229,7 +228,6 @@ def train_and_save(
     Carrega dados processados, divide em treino/teste com seed fixo,
     treina o Pipeline TF-IDF + classificador, valida as classes, salva
     modelo + hash + split de teste + importâncias + métricas de CV.
-    Registra parâmetros, métricas e artefatos no MLflow (autolog + manual).
 
     Args:
         data_path: Caminho do CSV processado.
