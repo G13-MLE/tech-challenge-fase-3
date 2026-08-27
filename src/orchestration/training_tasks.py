@@ -21,7 +21,14 @@ from src.preprocess.run import build_default_normalizer, preprocess_text
 from src.train.run import train_and_save
 from src.validate.run import validate_raw_data
 
-__all__ = ["ingest_data", "load_data", "train_model", "save_model", "evaluate_model"]
+__all__ = [
+    "ingest_data",
+    "load_data",
+    "train_model",
+    "save_model",
+    "evaluate_model",
+    "export_onnx_model",
+]
 
 
 def ingest_data(raw_path: Path | str | None = None) -> str:
@@ -119,3 +126,20 @@ def evaluate_model(model_path: str) -> str:
 
     run_evaluation(model_path=Path(model_path))
     return model_path
+
+
+def export_onnx_model(model_path: str) -> str:
+    """Exporta o modelo treinado para ONNX e verifica paridade.
+
+    Reutiliza a função de exportação do pipeline DVC (src.train.export_onnx).
+
+    Args:
+        model_path: Caminho do modelo joblib validado (recebido via XCom).
+
+    Returns:
+        Caminho do modelo ONNX exportado como string (para XCom).
+    """
+    from src.train.export_onnx import export_onnx
+
+    onnx_path = export_onnx(model_path=Path(model_path))
+    return str(onnx_path)

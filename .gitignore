@@ -42,7 +42,10 @@ models/*
 !models/.gitkeep
 
 # Relatorios e graficos gerados pela pipeline
-reports/
+reports/*.csv
+reports/*.txt
+reports/*.json
+!reports/benchmark_comparison.md
 
 # MLflow
 mlruns/

@@ -37,6 +37,19 @@ from src.core.stopwords import ENGLISH_STOPWORDS
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "resolve_stopwords",
+    "build_pipeline",
+    "save_model",
+    "save_model_hash",
+    "validate_model_classes",
+    "save_feature_importances",
+    "save_train_metrics",
+    "run_cross_validation",
+    "train_and_save",
+    "main",
+]
+
 
 def resolve_stopwords(params: TrainParams) -> list[str] | None:
     """Resolve a configuração de stopwords do TF-IDF.

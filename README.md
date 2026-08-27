@@ -63,7 +63,7 @@ flowchart TD
     B --> D["models/model.joblib\n+\nmodel.onnx"]
     D --> E["FastAPI\n/health /metrics\n /predict /predict /batch"]
     E --> F["Prometheus\napp_requests_total\napp_request_latency_seconds\npredictions_total\nprediction_latency_seconds"]
-    F --> G["Grafana\nTaxa de Requisições\nLatência P95\nTaxa de Erro"]
+    F --> G["Grafana\nTaxa de Requisições\nLatência P95\nTaxa de Erro\nTotal de Requisições"]
     H["Airflow @weekly\ntrain_pipeline DAG"] --> B
 ```
 
@@ -81,11 +81,11 @@ Design patterns aplicados:
 | 1 | API FastAPI funcional em Docker | ✔ Concluído | `src/api/app.py`, `docker/Dockerfile`, `docker/docker-compose.yml` |
 | 1 | Baseline de latência local | ✔ Concluído | `scripts/benchmark.py`, seção [Otimização de latência](#otimização-de-latência) |
 | 2 | GitHub Actions workflow (lint + test + build) | ✔ Concluído | `.github/workflows/ci.yml` |
-| 2 | DAG Airflow funcional (ingestão → treino → avaliação) | ✔ Concluído | `dags/train_pipeline.py`, `src/orchestration/training_tasks.py` |
+| 2 | DAG Airflow funcional (ingestão → treino → avaliação → exportação ONNX) | ✔ Concluído | `dags/train_pipeline.py`, `src/orchestration/training_tasks.py` |
 | 2 | Pipeline DVC reprodutível | ✔ Concluído | `dvc.yaml` (4 stages), `dvc.lock` |
 | 3 | Instrumentação Prometheus (`prometheus_client`) | ✔ Concluído | `src/core/metrics.py`, `src/api/app.py` (`/metrics`) |
 | 3 | Docker Compose com API + Prometheus + Grafana | ✔ Concluído | `docker/docker-compose.yml` (perfil `monitoring`) |
-| 3 | Dashboard Grafana com ≥3 painéis | ✔ Concluído | `configs/grafana/dashboards/triage-api.json` (Taxa de Requisições, Latência P95, Taxa de Erro) |
+| 3 | Dashboard Grafana com ≥3 painéis | ✔ Concluído | `configs/grafana/dashboards/triage-api.json` (Taxa de Requisições, Latência P95, Taxa de Erro, Total de Requisições) |
 | 4 | Modelo treinado (TF-IDF + RandomForest) | ✔ Concluído | `models/model.joblib`, `configs/params.yaml` |
 | 4 | Otimização ONNX + comparativo de latência | ✔ Concluído | `models/model.onnx`, `reports/benchmark_comparison.md` |
 | 4 | README completo cobrindo todos os entregáveis | ✔ Concluído | este README |
@@ -98,7 +98,7 @@ Design patterns aplicados:
 | Modelagem/Otimização | 20% | ✔ Concluído | TF-IDF + RandomForest treinado, ONNX exportado (100% paridade), benchmark comparativo, modelo real (14.438 registros, F1 macro 64.3%) |
 | CI/CD (GitHub Actions) | 15% | ✔ Concluído | `.github/workflows/ci.yml`: lint → test → build/push GHCR em push/PR para `main` |
 | Orquestração (Airflow) | 15% | ✔ Concluído | DAG `train_pipeline` (`@weekly`, 5 tasks TaskFlow), stack Airflow via Docker Compose |
-| Monitoramento | 20% | ✔ Concluído | 4 métricas Prometheus, `/metrics`, Grafana 3 painéis auto-provisionados, `generate_traffic.py` |
+| Monitoramento | 20% | ✔ Concluído | 4 métricas Prometheus, `/metrics`, Grafana 4 painéis auto-provisionados, `generate_traffic.py` |
 | README | 15% | ✔ Concluído | este documento — arquitetura, instruções passo a passo, latência, FinOps, segurança, CI/CD |
 | Vídeo STAR | 15% | ⚳ Pendente | link TBD |
 
@@ -114,7 +114,6 @@ Design patterns aplicados:
 │   ├── orchestration/      # Airflow training tasks
 │   ├── preprocess/         # normalização de texto, pipeline de ingestão
 │   ├── train/              # treino (RandomForest/LogisticRegression), exportação ONNX
-│   ├── utils/
 │   └── validate/           # validação de dados brutos
 ├── tests/                  # 129 testes pytest
 ├── dags/                   # Airflow DAG (train_pipeline)
@@ -228,7 +227,7 @@ make evaluate-live     # apenas a avaliação
 | Benchmark | Percentis P50/P95/P99 (nunca média), comparativo joblib vs ONNX |
 | Orquestração | DVC (pipeline reprodutível) + Airflow (re-treino semanal) |
 | CI/CD | GitHub Actions (lint → test → build/push GHCR) |
-| Monitoramento | Prometheus + Grafana (3 painéis auto-provisionados) |
+| Monitoramento | Prometheus + Grafana (4 painéis auto-provisionados) |
 
 ### Mapeamento de urgência
 
@@ -383,10 +382,10 @@ Containers: `airflow-postgres`, `airflow-init`, `airflow-scheduler`, `airflow-da
 # dags/train_pipeline.py — schedule="@weekly", TaskFlow API
 (
     ingest_data_task()
-    >> load_data_task()
     >> train_model_task()
     >> save_model_task()
     >> evaluate_model_task()
+    >> export_onnx_task()
 )
 ```
 
@@ -396,8 +395,9 @@ Containers: `airflow-postgres`, `airflow-init`, `airflow-scheduler`, `airflow-da
 | Start date | 2026-01-01 |
 | Catchup | False |
 | Max active runs | 1 |
-| Retries | 3 (treino), 2 (validação/avaliação) |
-| Timeout | 1h (treino), 30min (avaliação) |
+| Tasks | ingest_data → train_model → save_model → evaluate_model → export_onnx |
+| Retries | 3 (ingestão/treino), 2 (validação/avaliação/exportação) |
+| Timeout | 1h (ingestão/treino), 30min (validação/avaliação/exportação) |
 
 ### Subir a stack
 
@@ -420,11 +420,12 @@ Stack Prometheus + Grafana containerizada. A API expõe `/metrics` com 4 métric
 | `predictions_total` | Counter | Predições por nível de urgência |
 | `prediction_latency_seconds` | Histogram | Latência de predição por endpoint |
 
-### Dashboard Grafana (3 painéis)
+### Dashboard Grafana (4 painéis)
 
 1. **Taxa de Requisições** — `rate(app_requests_total[5m])`
 2. **Latência P95** — `histogram_quantile(0.95, rate(app_request_latency_seconds_bucket[5m]))`
-3. **Taxa de Erro** — `rate(app_requests_total{status_code=~"5.."}[5m])`
+3. **Taxa de Erro** — `rate(app_requests_total{http_status=~"[45].."}[5m])`
+4. **Total de Requisições** — `sum(app_requests_total)`
 
 ### Subir a stack
 

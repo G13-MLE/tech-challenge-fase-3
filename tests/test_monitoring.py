@@ -19,15 +19,16 @@ EXPECTED_PANELS = {
         'sum(rate(app_requests_total{http_status=~"[45].."}[5m]))'
         " / sum(rate(app_requests_total[5m]))"
     ),
+    "Total de Requisições": "sum(app_requests_total)",
 }
 
 
 def test_dashboard_json_parses() -> None:
-    """Dashboard JSON deve ser válido e conter 3 painéis."""
+    """Dashboard JSON deve ser válido e conter 4 painéis."""
     data = json.loads(DASHBOARD_JSON.read_text())
     assert data["title"] == "Triage API"
     panels = data["panels"]
-    assert len(panels) == 3, f"esperado 3 painéis, encontrado {len(panels)}"
+    assert len(panels) == 4, f"esperado 4 painéis, encontrado {len(panels)}"
 
 
 def test_dashboard_contains_expected_panels() -> None:

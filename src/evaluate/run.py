@@ -26,12 +26,22 @@ from src.core.dataset import (
     atomic_write_text,
     load_csv_records,
 )
-from src.models.factory import create_model
+from src.models.factory import ModelBackend, create_model
 from src.models.urgency import URGENCY_MAP
 
 logger = logging.getLogger(__name__)
 
-CLASS_NAMES = ["normal", "atencao", "urgente"]
+__all__ = [
+    "CLASS_NAMES",
+    "compute_metrics",
+    "save_metrics",
+    "save_report",
+    "save_confusion_matrix",
+    "run_evaluation",
+    "main",
+]
+
+CLASS_NAMES = ["normal", "atencao", "urgente"]  # noqa: E501 — ASCII for CSV headers; API uses "atenção"
 
 
 def compute_metrics(true_labels: list[int], predicted_labels: list[int]) -> dict[str, float]:
@@ -122,6 +132,7 @@ def run_evaluation(
     metrics_path: Path = METRICS_PATH,
     report_path: Path = REPORT_PATH,
     confusion_matrix_path: Path = CONFUSION_MATRIX_PATH,
+    backend: ModelBackend = "joblib",
 ) -> dict[str, float]:
     """Executa a avaliação completa e salva métricas, relatório e matriz.
 
@@ -131,6 +142,7 @@ def run_evaluation(
         metrics_path: Caminho do JSON de métricas de saída.
         report_path: Caminho do relatório de classificação de saída.
         confusion_matrix_path: Caminho do CSV da matriz de confusão de saída.
+        backend: Backend de carregamento ('joblib' ou 'onnx').
 
     Returns:
         Dicionário com as métricas calculadas.
@@ -138,7 +150,7 @@ def run_evaluation(
     if test_data_path is None:
         test_data_path = TEST_DATA_PATH
     texts, labels = load_csv_records(test_data_path)
-    model = create_model(model_path, backend="joblib")
+    model = create_model(model_path, backend=backend)
     predictions = model.predict_batch(texts)
     label_to_int = {v: k for k, v in URGENCY_MAP.items()}
     predicted_labels = [label_to_int[u] for u, _ in predictions]

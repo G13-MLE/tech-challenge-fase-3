@@ -175,14 +175,14 @@ class OnnxLoader(ModelLoader):
         self._input_name: str = ""
 
     def load(self, path: Path | str) -> None:
-        """Carrega o modelo ONNX com verificação de integridade.
+        """Carrega o modelo ONNX com verificação de integridade e validação de classes.
 
         Args:
             path: Caminho para o arquivo .onnx.
 
         Raises:
             FileNotFoundError: Se o arquivo não existir.
-            ValueError: Se o hash SHA256 não corresponder.
+            ValueError: Se o hash SHA256 não corresponder ou as classes forem inválidas.
         """
         import onnxruntime as ort
 
@@ -195,6 +195,7 @@ class OnnxLoader(ModelLoader):
             providers=["CPUExecutionProvider"],
         )
         self._input_name = self._session.get_inputs()[0].name
+        _validate_onnx_outputs(self._session)
 
     def predict(self, text: str) -> tuple[UrgencyLevel, float]:
         """Prediz o nível de urgência via ONNX Runtime.
@@ -315,3 +316,28 @@ def _validate_model_classes(model) -> None:
         raise ValueError(
             f"Classes do modelo {actual} não correspondem ao esperado {EXPECTED_CLASSES}"
         )
+
+
+def _validate_onnx_outputs(session) -> None:
+    """Valida que as saídas do modelo ONNX cobrem as classes esperadas.
+
+    Executa uma predição de sanidade e verifica se os rótulos produzidos
+    estão no mapeamento URGENCY_MAP.
+
+    Args:
+        session: Sessão ONNX Runtime carregada.
+
+    Raises:
+        ValueError: Se algum rótulo ONNX estiver fora de {0, 1, 2}.
+    """
+    import numpy as np
+
+    input_name = session.get_inputs()[0].name
+    test_input = np.array([["sanity check"]])
+    outputs = session.run(None, {input_name: test_input})
+    labels = outputs[0]
+    for label in labels.flat:
+        if int(label) not in EXPECTED_CLASSES:
+            raise ValueError(
+                f"Rótulo ONNX {int(label)} fora das classes esperadas {EXPECTED_CLASSES}"
+            )

@@ -39,7 +39,8 @@ def export_onnx(
         model_path: Caminho do modelo joblib.
         onnx_path: Caminho de saída do modelo ONNX.
         onnx_hash_path: Caminho do arquivo de hash SHA256.
-        target_opset: Versão do opset ONNX alvo.
+        target_opset: Versão do opset ONNX alvo (15 é compatível com
+            onnxruntime>=1.16, que é a versão usada no container Docker).
 
     Returns:
         Caminho do modelo ONNX salvo.

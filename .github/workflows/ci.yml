@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "etapa-2/**"]
+    branches: [main, "etapa-2/**", "etapa-4/**"]
     paths-ignore: ["**/*.md", "docs/**", "LICENSE", ".env.example"]
   pull_request:
     branches: [main]
