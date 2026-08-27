@@ -11,11 +11,11 @@ PYTHON := uv run python
 	help \
 	sync setup verify \
 	test lint \
-	pipeline train pipeline-live train-live evaluate-live data-synthetic \
+	pipeline train pipeline-live train-live evaluate-live data-synthetic data-kaggle \
 	dvc-remote \
 	docker-build docker-run docker-train \
 	airflow-up airflow-down airflow-logs \
-	api-up api-down benchmark \
+	api-up api-down benchmark benchmark-comparison \
 	monitoring-up monitoring-down monitoring-logs generate-traffic
 
 # ---------------------------------------------------------------------------
@@ -25,40 +25,42 @@ help:
 	@echo "Tech Challenge Fase 3 - Comandos Disponíveis"
 	@echo ""
 	@echo "Setup:"
-	@echo "  make verify          - Validar ambiente (scripts/validate_env.py)"
-	@echo "  make sync            - Sincronizar dependências (uv sync)"
-	@echo "  make setup           - Configurar ambiente (.env, deps, pre-commit)"
+	@echo "  make verify - Validar ambiente (scripts/validate_env.py)"
+	@echo "  make sync   - Sincronizar dependências (uv sync)"
+	@echo "  make setup  - Configurar ambiente (.env, deps, pre-commit)"
 	@echo ""
 	@echo "Qualidade:"
-	@echo "  make test            - Rodar testes (pytest)"
-	@echo "  make lint            - Verificar código com ruff"
+	@echo "  make test - Rodar testes (pytest)"
+	@echo "  make lint - Verificar código com ruff"
 	@echo ""
 	@echo "Pipeline DVC:"
 	@echo "  make data-synthetic - Gerar dataset sintético e registrar no DVC"
-	@echo "  make pipeline        - Reexecutar pipeline DVC completo (dvc repro -v)"
-	@echo "  make train           - Reexecutar stage de treino (dvc repro train -v)"
-	@echo "  make pipeline-live   - Rodar pipeline completo direto (sem DVC) com logs live"
-	@echo "  make train-live      - Rodar apenas o treino direto (sem DVC) com logs live"
-	@echo "  make evaluate-live   - Rodar apenas a avaliação direto (sem DVC) com logs live"
-	@echo "  make dvc-remote      - Configurar remote DVC OneDrive (opcional, via .env)"
+	@echo "  make data-kaggle    - Baixar dataset Kaggle (Medical Abstracts TC) e registrar no DVC"
+	@echo "  make pipeline       - Reexecutar pipeline DVC completo (dvc repro -v)"
+	@echo "  make train          - Reexecutar stage de treino (dvc repro train -v)"
+	@echo "  make pipeline-live  - Rodar pipeline completo direto (sem DVC) com logs live"
+	@echo "  make train-live     - Rodar apenas o treino direto (sem DVC) com logs live"
+	@echo "  make evaluate-live  - Rodar apenas a avaliação direto (sem DVC) com logs live"
+	@echo "  make dvc-remote     - Configurar remote DVC OneDrive (opcional, via .env)"
 	@echo ""
 	@echo "Docker:"
-	@echo "  make docker-build    - Construir imagem Docker da API"
-	@echo "  make docker-run      - Rodar API em container Docker"
-	@echo "  make docker-train    - Rodar pipeline DVC dentro do container (perfil train)"
-	@echo "  make airflow-up      - Subir stack Airflow + MLflow (perfil airflow)"
-	@echo "  make airflow-down    - Parar stack Airflow"
-	@echo "  make airflow-logs    - Logs da stack Airflow"
+	@echo "  make docker-build - Construir imagem Docker da API"
+	@echo "  make docker-run   - Rodar API em container Docker"
+	@echo "  make docker-train - Rodar pipeline DVC dentro do container (perfil train)"
+	@echo "  make airflow-up   - Subir stack Airflow + MLflow (perfil airflow)"
+	@echo "  make airflow-down - Parar stack Airflow"
+	@echo "  make airflow-logs - Logs da stack Airflow"
 	@echo ""
 	@echo "Modelo e Benchmark:"
-	@echo "  make api-up          - Subir API em Docker (build + health check)"
-	@echo "  make api-down        - Parar API"
-	@echo "  make benchmark       - Benchmark de latência (P50/P95/P99, sobe API se necessário)"
+	@echo "  make api-up               - Subir API em Docker (build + health check)"
+	@echo "  make api-down             - Parar API"
+	@echo "  make benchmark            - Benchmark de latência (P50/P95/P99, sobe API se necessário)"
+	@echo "  make benchmark-comparison - Benchmark comparativo joblib vs ONNX"
 	@echo ""
 	@echo "Monitoramento:"
-	@echo "  make monitoring-up   - Subir API + Prometheus + Grafana (perfil monitoring)"
+	@echo "  make monitoring-up    - Subir API + Prometheus + Grafana (perfil monitoring)"
 	@echo "  make monitoring-down  - Parar stack de monitoramento"
-	@echo "  make monitoring-logs - Logs da stack de monitoramento"
+	@echo "  make monitoring-logs  - Logs da stack de monitoramento"
 	@echo "  make generate-traffic - Gerar tráfego para popular métricas"
 	@echo ""
 
@@ -136,6 +138,13 @@ data-synthetic:
 	git add data/raw/laudos.csv.dvc
 	@echo "[OK] dataset sintético gerado e registrado no DVC."
 
+data-kaggle:
+	@echo "Baixando dataset Kaggle (Medical Abstracts TC Corpus)..."
+	PYTHONPATH=. uv run python scripts/download_data.py
+	uv run dvc add data/raw/medical_abstracts.csv
+	git add data/raw/medical_abstracts.csv.dvc
+	@echo "[OK] dataset Kaggle baixado e registrado no DVC."
+
 # ---------------------------------------------------------------------------
 # Benchmark
 # ---------------------------------------------------------------------------
@@ -170,6 +179,10 @@ benchmark: docker-build
 	@echo "Executando benchmark de latência..."
 	uv run python scripts/benchmark.py
 	docker compose -f docker/docker-compose.yml --env-file .env stop api
+
+benchmark-comparison: docker-build
+	@echo "Benchmark comparativo joblib vs ONNX..."
+	uv run python scripts/benchmark.py --compare --output reports/benchmark_comparison.md
 
 # ---------------------------------------------------------------------------
 # Docker

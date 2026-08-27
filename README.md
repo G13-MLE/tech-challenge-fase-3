@@ -24,9 +24,9 @@ Sistema de triagem automática de exames de texto (laudos médicos) para classif
 | Componente | Decisão |
 |---|---|
 | API | FastAPI (`/health`, `/predict`) |
-| Modelo | Scikit-Learn (TF-IDF + RandomForest), artefato em `joblib` |
+| Modelo | Scikit-Learn (TF-IDF + RandomForest/LogisticRegression), artefato em `joblib` + `onnx` |
 | Container | Docker multi-stage, `python:3.14-slim` |
-| Benchmark | Percentis P50/P95/P99 (nunca média) |
+| Benchmark | Percentis P50/P95/P99 (nunca média), comparativo joblib vs ONNX |
 
 ### Segurança e FinOps
 
@@ -44,7 +44,7 @@ O modelo classifica o texto em 5 classes clínicas, mapeadas para 3 níveis de u
 | Diabetes / Hipertensão | Atenção |
 | Asma / Hérnia | Normal |
 
-> Nota: na Etapa 1 a API usa um modelo dummy em `joblib` com esse mapeamento. O modelo real é treinado na Etapa 4. O modelo servido pela API é gerado pelo pipeline DVC (TF-IDF + RandomForest) sobre o dataset sintético.
+> Nota: na Etapa 1 a API usava um modelo dummy em `joblib`. Na Etapa 4, o modelo real é treinado com o Medical Abstracts TC Corpus (5 classes clínicas → 3 níveis de urgência), exportado para ONNX para inferência otimizada. O dataset Kaggle é baixado via `make data-kaggle`.
 
 ## Início Rápido
 
@@ -64,7 +64,8 @@ make setup
 
 ```bash
 make data-synthetic   # dataset sintético registrado no DVC
-make pipeline         # dvc repro: ingestão -> treino -> avaliação
+make data-kaggle      # dataset Kaggle (Medical Abstracts TC) registrado no DVC
+make pipeline         # dvc repro: ingestão -> treino -> avaliação -> onnx
 ```
 
 ### Remote DVC (opcional)
@@ -169,8 +170,16 @@ Autenticação opcional por API key (`X-API-Key`): habilite via `API_KEY_ENABLED
 
 ### Benchmark de latência
 
+Benchmark com um único backend (atual):
+
 ```bash
 make benchmark
+```
+
+Benchmark comparativo joblib vs ONNX (reinicia a API com cada backend):
+
+```bash
+make benchmark-comparison
 ```
 
 ## Baseline de Latência
@@ -182,6 +191,18 @@ Resultados obtidos com `make benchmark` em Docker (modelo sintético, 100 requis
 | P50 | 9.61 ms |
 | P95 | 15.39 ms |
 | P99 | 31.35 ms |
+
+## Comparação de Latência: joblib vs ONNX
+
+> Preenchido após executar `make benchmark-comparison` com o modelo real.
+> O relatório é salvo em `reports/benchmark_comparison.md`.
+
+| Métrica | joblib | ONNX | Δ |
+|---|---|---|---|
+| P50 | — ms | — ms | — |
+| P95 | — ms | — ms | — |
+| P99 | — ms | — ms | — |
+| Artefato | — KB | — KB | — |
 
 ## Comandos Disponíveis
 
@@ -195,6 +216,7 @@ make help
 | `make test` | Rodar testes |
 | `make lint` | Verificar código |
 | `make data-synthetic` | Gerar dataset sintético e registrar no DVC |
+| `make data-kaggle` | Baixar dataset Kaggle (Medical Abstracts TC) e registrar no DVC |
 | `make pipeline` | Rodar pipeline DVC completo (dvc repro) |
 | `make train` | Rodar estágio de treino (dvc repro train) |
 | `make pipeline-live` | Rodar pipeline direto (sem DVC), logs live |
@@ -202,6 +224,7 @@ make help
 | `make evaluate-live` | Rodar avaliação direto (sem DVC), logs live |
 | `make dvc-remote` | Configurar remote DVC OneDrive (opcional) |
 | `make benchmark` | Benchmark de latência |
+| `make benchmark-comparison` | Benchmark comparativo joblib vs ONNX |
 | `make docker-build` | Construir imagem Docker |
 | `make docker-run` | Rodar API em container |
 | `make docker-train` | Pipeline DVC no container (perfil train) |

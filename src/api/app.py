@@ -42,6 +42,33 @@ HEALTH_OK = "ok"
 HEALTH_DEGRADED = "degraded"
 API_PREFIX = "/api/v1"
 
+WARMUP_TEXTS = [
+    "paciente com pneumonia bacteriana grave",
+    "diabetes tipo 2 descompensada",
+    "asma cronica com sibilos",
+]
+
+
+def _warmup_model(model: ModelLoader, normalizer: TextNormalizer) -> None:
+    """Executa inferências de warmup após carregar o modelo.
+
+    Realiza predições com textos de exemplo para pré-aquecer caches
+    e JIT do runtime. Falhas são apenas registradas em log — não
+    impedem a inicialização da API.
+
+    Args:
+        model: Modelo carregado.
+        normalizer: Normalizador de texto.
+    """
+    for text in WARMUP_TEXTS:
+        try:
+            normalized = normalizer.normalize(text)
+            if normalized:
+                model.predict(normalized)
+        except Exception:
+            logger.warning("Warmup falhou para texto '%s' (ignorado).", text, exc_info=True)
+    logger.info("Warmup concluído (%d textos).", len(WARMUP_TEXTS))
+
 
 def _read_model_version() -> str:
     """Lê o hash SHA256 do modelo como identificador de versão.
@@ -157,6 +184,7 @@ async def lifespan(app: FastAPI):
         app.state.normalizer = build_default_normalizer()
         app.state.model_version = _read_model_version()
         logger.info("Modelo carregado com sucesso: %s", settings.model_path)
+        _warmup_model(app.state.model, app.state.normalizer)
     except Exception:
         logger.exception("Falha ao carregar modelo: %s", settings.model_path)
         app.state.model = None

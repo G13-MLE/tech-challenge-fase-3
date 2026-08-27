@@ -172,8 +172,8 @@ class TestCreateModel:
         assert urgency in {UrgencyLevel.NORMAL, UrgencyLevel.ATENCAO, UrgencyLevel.URGENTE}
         assert 0.0 <= confidence <= 1.0
 
-    def test_create_onnx_backend_raises(self) -> None:
-        with pytest.raises(NotImplementedError, match="ONNX"):
+    def test_create_onnx_backend_file_not_found(self) -> None:
+        with pytest.raises(FileNotFoundError, match="ONNX"):
             create_model("models/model.onnx", backend="onnx")
 
     def test_create_invalid_backend_raises(self) -> None:

@@ -7,7 +7,7 @@ services:
       - ../.env
     environment:
       - MODEL_PATH=/app/models/model.joblib
-      - MODEL_BACKEND=joblib
+      - MODEL_BACKEND=${MODEL_BACKEND:-onnx}
       - RATE_LIMIT_MAX_PER_IP=${RATE_LIMIT_MAX_PER_IP:-60}
       - RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS:-60}
     volumes:
@@ -28,7 +28,7 @@ services:
       - ../.env
     environment:
       - MODEL_PATH=/app/models/model.joblib
-      - MODEL_BACKEND=joblib
+      - MODEL_BACKEND=${MODEL_BACKEND:-onnx}
     volumes:
       - ../data:/app/data
       - ../models:/app/models

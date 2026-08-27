@@ -1,7 +1,9 @@
 """Pipeline de treinamento do modelo de triagem.
 
-Carrega os dados processados, treina um Pipeline TF-IDF + RandomForest
-com seeds fixos e salva o artefato em `models/model.joblib`.
+Carrega os dados processados, treina um Pipeline TF-IDF + classificador
+(RandomForest ou LogisticRegression) com seeds fixos e salva o artefato
+em `models/model.joblib`. Registra parâmetros, métricas e artefatos no
+MLflow (autolog + logging manual de artefatos).
 """
 
 import hashlib
@@ -14,6 +16,7 @@ from typing import Any
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.pipeline import Pipeline
 
@@ -54,7 +57,11 @@ def resolve_stopwords(params: TrainParams) -> list[str] | None:
 
 
 def build_pipeline(params: TrainParams) -> Pipeline:
-    """Constrói o Pipeline TF-IDF + RandomForest.
+    """Constrói o Pipeline TF-IDF + classificador.
+
+    O classificador é selecionado pelo parâmetro `classifier`:
+    - 'random_forest': RandomForestClassifier (padrão)
+    - 'logistic_regression': LogisticRegression
 
     Args:
         params: Parâmetros do pipeline (seeds, TF-IDF, classificador).
@@ -72,17 +79,25 @@ def build_pipeline(params: TrainParams) -> Pipeline:
     }
     if stopwords is not None:
         tfidf_kwargs["stop_words"] = stopwords
+
+    if params.classifier == "logistic_regression":
+        clf = LogisticRegression(
+            C=params.logistic_regression_C,
+            max_iter=params.logistic_regression_max_iter,
+            random_state=params.seed,
+            class_weight=params.random_forest_class_weight,
+        )
+    else:
+        clf = RandomForestClassifier(
+            n_estimators=params.random_forest_n_estimators,
+            random_state=params.seed,
+            class_weight=params.random_forest_class_weight,
+        )
+
     return Pipeline(
         [
             ("tfidf", TfidfVectorizer(**tfidf_kwargs)),
-            (
-                "clf",
-                RandomForestClassifier(
-                    n_estimators=params.random_forest_n_estimators,
-                    random_state=params.seed,
-                    class_weight=params.random_forest_class_weight,
-                ),
-            ),
+            ("clf", clf),
         ]
     )
 
@@ -123,7 +138,10 @@ def validate_model_classes(model: Pipeline) -> None:
 
 
 def save_feature_importances(model: Pipeline, path: Path) -> None:
-    """Salva as top-N importâncias de features do RandomForest.
+    """Salva as top-N importâncias de features do classificador.
+
+    Para RandomForest, usa feature_importances_.
+    Para LogisticRegression, usa os coeficientes absolutos por classe.
 
     Args:
         model: Pipeline sklearn treinado.
@@ -132,7 +150,15 @@ def save_feature_importances(model: Pipeline, path: Path) -> None:
     clf = model.named_steps["clf"]
     tfidf = model.named_steps["tfidf"]
     feature_names = tfidf.get_feature_names_out()
-    importances = clf.feature_importances_
+
+    if hasattr(clf, "feature_importances_"):
+        importances = clf.feature_importances_
+    elif hasattr(clf, "coef_"):
+        importances = abs(clf.coef_).mean(axis=0)
+    else:
+        logger.warning("Classificador não suporta importâncias de features.")
+        return
+
     top_features = sorted(
         zip(feature_names, importances, strict=False),
         key=lambda item: item[1],
@@ -202,9 +228,9 @@ def train_and_save(
     """Executa o pipeline de treinamento completo e salva os artefatos.
 
     Carrega dados processados, divide em treino/teste com seed fixo,
-    treina o Pipeline TF-IDF + RandomForest, valida as classes, salva
+    treina o Pipeline TF-IDF + classificador, valida as classes, salva
     modelo + hash + split de teste + importâncias + métricas de CV.
-    Registra parâmetros, métricas e artefatos no MLflow (opcional).
+    Registra parâmetros, métricas e artefatos no MLflow (autolog + manual).
 
     Args:
         data_path: Caminho do CSV processado.
@@ -224,6 +250,14 @@ def train_and_save(
         feature_importances_path = FEATURE_IMPORTANCES_PATH
     if train_metrics_path is None:
         train_metrics_path = TRAIN_METRICS_PATH
+
+    try:
+        import mlflow
+
+        mlflow.sklearn.autolog(disable=True)
+    except ImportError:
+        pass
+
     settings = None
     try:
         from src.core.config import get_settings
