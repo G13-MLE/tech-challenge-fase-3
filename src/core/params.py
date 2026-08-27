@@ -6,6 +6,7 @@ modelos Pydantic tipados para os estágios do pipeline.
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -19,8 +20,11 @@ class TrainParams(BaseModel):
     Attributes:
         seed: Seed fixa para reprodutibilidade.
         test_size: Proporção do conjunto de teste.
+        classifier: Tipo de classificador ('random_forest' ou 'logistic_regression').
         random_forest_n_estimators: Número de árvores do RandomForest.
         random_forest_class_weight: Estratégia de peso das classes ('balanced' ou None).
+        logistic_regression_C: Inverso da regularização da regressão logística.
+        logistic_regression_max_iter: Número máximo de iterações da regressão logística.
         tfidf_max_features: Número máximo de features do TF-IDF.
         tfidf_ngram_range: Faixa de n-grams (min, max) do TF-IDF.
         tfidf_sublinear_tf: Se True, aplica log1p na frequência de termos.
@@ -35,8 +39,11 @@ class TrainParams(BaseModel):
 
     seed: int = Field(ge=0)
     test_size: float = Field(gt=0, lt=1)
+    classifier: Literal["random_forest", "logistic_regression"] = "random_forest"
     random_forest_n_estimators: int = Field(ge=1)
     random_forest_class_weight: str | None = "balanced"
+    logistic_regression_C: float = Field(gt=0, default=1.0)  # noqa: N815
+    logistic_regression_max_iter: int = Field(ge=100, default=1000)
     tfidf_max_features: int = Field(ge=1)
     tfidf_ngram_range: tuple[int, int] = (1, 2)
     tfidf_sublinear_tf: bool = True

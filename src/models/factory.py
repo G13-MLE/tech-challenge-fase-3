@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 
 import joblib
+import numpy as np
 
 from src.core.dataset import EXPECTED_CLASSES
 from src.models.urgency import URGENCY_MAP, UrgencyLevel
@@ -163,23 +164,86 @@ class JoblibLoader(ModelLoader):
 
 @register_loader("onnx")
 class OnnxLoader(ModelLoader):
-    """Carregador de modelos no formato ONNX (stub).
+    """Carregador de modelos no formato ONNX.
 
-    Reservado para integração futura na Etapa 4, quando o modelo
-    poderá ser exportado para ONNX para inferência otimizada.
+    Carrega o modelo ONNX via onnxruntime e realiza inferência
+    com verificação de integridade SHA256.
     """
 
+    def __init__(self) -> None:
+        self._session = None
+        self._input_name: str = ""
+
     def load(self, path: Path | str) -> None:
-        raise NotImplementedError(
-            "Backend ONNX ainda não implementado: exporte o modelo para ONNX "
-            "e use o backend 'onnx' na próxima etapa."
+        """Carrega o modelo ONNX com verificação de integridade.
+
+        Args:
+            path: Caminho para o arquivo .onnx.
+
+        Raises:
+            FileNotFoundError: Se o arquivo não existir.
+            ValueError: Se o hash SHA256 não corresponder.
+        """
+        import onnxruntime as ort
+
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Arquivo de modelo ONNX não encontrado: {path}")
+        _verify_model_hash(path)
+        self._session = ort.InferenceSession(
+            path.read_bytes(),
+            providers=["CPUExecutionProvider"],
         )
+        self._input_name = self._session.get_inputs()[0].name
 
     def predict(self, text: str) -> tuple[UrgencyLevel, float]:
-        raise NotImplementedError(
-            "Backend ONNX ainda não implementado: carregue o modelo com "
-            "backend 'joblib' ou implemente o carregador ONNX."
-        )
+        """Prediz o nível de urgência via ONNX Runtime.
+
+        Args:
+            text: Texto do laudo médico (normalizado).
+
+        Returns:
+            Tupla (urgência, confiança).
+
+        Raises:
+            RuntimeError: Se o modelo não foi carregado.
+        """
+        if self._session is None:
+            raise RuntimeError("Modelo ONNX não carregado. Chame load() primeiro.")
+        input_data = np.array([text]).reshape(-1, 1)
+        outputs = self._session.run(None, {self._input_name: input_data})
+        labels = outputs[0]
+        probas = outputs[1]
+        raw_label = int(labels[0])
+        confidence = float(probas[0].max())
+        urgency = URGENCY_MAP[raw_label]
+        return urgency, confidence
+
+    def predict_batch(self, texts: list[str]) -> list[tuple[UrgencyLevel, float]]:
+        """Realiza inferência em lote via ONNX Runtime.
+
+        Args:
+            texts: Lista de textos de laudos médicos (normalizados).
+
+        Returns:
+            Lista de tuplas (urgência, confiança).
+
+        Raises:
+            RuntimeError: Se o modelo não foi carregado.
+        """
+        if self._session is None:
+            raise RuntimeError("Modelo ONNX não carregado. Chame load() primeiro.")
+        input_data = np.array(texts).reshape(-1, 1)
+        outputs = self._session.run(None, {self._input_name: input_data})
+        labels = outputs[0]
+        probas = outputs[1]
+        results: list[tuple[UrgencyLevel, float]] = []
+        for i in range(len(texts)):
+            raw_label = int(labels[i])
+            confidence = float(probas[i].max())
+            urgency = URGENCY_MAP[raw_label]
+            results.append((urgency, confidence))
+        return results
 
 
 def create_model(model_path: Path | str, backend: ModelBackend = "joblib") -> ModelLoader:
@@ -206,9 +270,8 @@ def _verify_model_hash(model_path: Path) -> None:
     """Verifica a integridade do modelo via hash SHA256.
 
     Compara o hash SHA256 do arquivo de modelo contra o hash salvo
-    no arquivo .sha256 correspondente (mesmo diretório, mesmo nome
-    com sufixo .sha256). Se o arquivo de hash não existir, a
-    verificação é ignorada (modo degradado).
+    no arquivo .sha256 correspondente. Se o arquivo de hash não existir,
+    a verificação é ignorada (modo degradado).
 
     Args:
         model_path: Caminho do arquivo de modelo.

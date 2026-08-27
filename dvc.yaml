@@ -1,5 +1,5 @@
 # =============================================================================
-# Pipeline DVC: ingestão -> treino -> avaliação
+# Pipeline DVC: ingestão -> treino -> avaliação -> onnx
 # =============================================================================
 
 stages:
@@ -48,3 +48,12 @@ stages:
     metrics:
       - reports/metrics.json:
           cache: false
+
+  onnx:
+    cmd: uv run python -m src.train.export_onnx
+    deps:
+      - models/model.joblib
+      - src/train/export_onnx.py
+    outs:
+      - models/model.onnx
+      - models/model.onnx.sha256

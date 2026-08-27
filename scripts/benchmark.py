@@ -3,18 +3,24 @@
 Realiza warmup + N requisições ao endpoint /api/v1/predict e calcula
 os percentis P50, P95 e P99 (nunca média).
 
+Suporta modo de comparação entre backends joblib e ONNX, com relatório
+de tamanho de artefato e tabela comparativa em Markdown.
+
 Uso:
     uv run python scripts/benchmark.py
     uv run python scripts/benchmark.py --url http://localhost:8000 --requests 200 --warmup 10
     uv run python scripts/benchmark.py --concurrency 8 --requests 500
     uv run python scripts/benchmark.py --api-key dev-api-key
+    uv run python scripts/benchmark.py --compare --output reports/benchmark_comparison.md
 """
 
 import argparse
 import logging
+import os
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import httpx
 
@@ -30,6 +36,9 @@ HTTP_TOO_MANY_REQUESTS = 429
 MIN_SAMPLE_SIZE = 100
 RATE_LIMIT_MAX_RETRIES = 5
 RATE_LIMIT_INITIAL_BACKOFF = 1.0
+MODEL_DIR = Path("models")
+JOBLIB_FILE = MODEL_DIR / "model.joblib"
+ONNX_FILE = MODEL_DIR / "model.onnx"
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +75,7 @@ def _send_request(
     """
     request_headers = headers or {}
     elapsed = 0.0
-    response = None  # will be assigned in the loop below
+    response = None
     for attempt in range(RATE_LIMIT_MAX_RETRIES):
         start = time.perf_counter()
         response = httpx.post(
@@ -84,7 +93,6 @@ def _send_request(
             time.sleep(backoff)
             continue
         return elapsed, response.status_code, response.text
-    # All retries exhausted — response was set in the last loop iteration
     assert response is not None, "Unexpected: no HTTP response after retries"
     return elapsed, response.status_code, response.text
 
@@ -158,7 +166,7 @@ def compute_percentiles(latencies: list[float]) -> dict[str, float]:
         latencies: Lista de latências em milissegundos.
 
     Returns:
-        Dicionário com P50, P95 e P99.
+        Dicionário com P50, P95, P99, min e max.
     """
     sorted_lat = sorted(latencies)
     return {
@@ -170,23 +178,32 @@ def compute_percentiles(latencies: list[float]) -> dict[str, float]:
     }
 
 
-def parse_args() -> argparse.Namespace:
-    """Parseia os argumentos da linha de comando.
+def get_artifact_size(path: Path) -> int | None:
+    """Retorna o tamanho de um arquivo de artefato em bytes, ou None se não existir.
+
+    Args:
+        path: Caminho do arquivo.
 
     Returns:
-        Namespace com os argumentos parseados.
+        Tamanho em bytes ou None.
     """
-    parser = argparse.ArgumentParser(description="Benchmark de latência da API")
-    parser.add_argument("--url", default=DEFAULT_URL)
-    parser.add_argument("--requests", type=int, default=DEFAULT_REQUESTS)
-    parser.add_argument("--warmup", type=int, default=DEFAULT_WARMUP)
-    parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY)
-    parser.add_argument(
-        "--api-key",
-        default=None,
-        help="API key para autenticação (header X-API-Key)",
-    )
-    return parser.parse_args()
+    if path.exists():
+        return path.stat().st_size
+    return None
+
+
+def format_size(size_bytes: int) -> str:
+    """Formata bytes em string legível (KB ou MB).
+
+    Args:
+        size_bytes: Tamanho em bytes.
+
+    Returns:
+        String formatada.
+    """
+    if size_bytes >= 1_000_000:
+        return f"{size_bytes / 1_000_000:.2f} MB"
+    return f"{size_bytes / 1_000:.1f} KB"
 
 
 def print_results(stats: dict[str, float], n_requests: int) -> None:
@@ -207,6 +224,86 @@ def print_results(stats: dict[str, float], n_requests: int) -> None:
     print("=" * 50)
 
 
+def print_comparison(
+    joblib_stats: dict[str, float],
+    onnx_stats: dict[str, float],
+    n_requests: int,
+) -> None:
+    """Imprime tabela comparativa entre backends joblib e ONNX.
+
+    Args:
+        joblib_stats: Estatísticas do backend joblib.
+        onnx_stats: Estatísticas do backend ONNX.
+        n_requests: Número de requisições por backend.
+    """
+    joblib_size = get_artifact_size(JOBLIB_FILE)
+    onnx_size = get_artifact_size(ONNX_FILE)
+
+    print("\n" + "=" * 60)
+    print(f"Comparação de Latência: joblib vs ONNX ({n_requests} req/backend)")
+    print("=" * 60)
+    print(f"{'Métrica':<10} {'joblib':>12} {'ONNX':>12} {'Δ':>12}")
+    print("-" * 60)
+    for metric in ["P50", "P95", "P99", "min", "max"]:
+        j = joblib_stats[metric]
+        o = onnx_stats[metric]
+        delta = o - j
+        pct = (delta / j * 100) if j != 0 else 0
+        print(f"{metric:<10} {j:>10.2f} ms {o:>10.2f} ms {delta:>+9.2f} ms ({pct:+.1f}%)")
+    print("-" * 60)
+    if joblib_size is not None:
+        print(f"{'Artefato':<10} {format_size(joblib_size):>12}", end="")
+    else:
+        print(f"{'Artefato':<10} {'N/A':>12}", end="")
+    if onnx_size is not None:
+        print(f" {format_size(onnx_size):>12}")
+    else:
+        print(f" {'N/A':>12}")
+    print("=" * 60)
+
+
+def write_comparison_markdown(
+    joblib_stats: dict[str, float],
+    onnx_stats: dict[str, float],
+    n_requests: int,
+    output_path: Path,
+) -> None:
+    """Escreve tabela comparativa em formato Markdown.
+
+    Args:
+        joblib_stats: Estatísticas do backend joblib.
+        onnx_stats: Estatísticas do backend ONNX.
+        n_requests: Número de requisições por backend.
+        output_path: Caminho do arquivo Markdown de saída.
+    """
+    joblib_size = get_artifact_size(JOBLIB_FILE)
+    onnx_size = get_artifact_size(ONNX_FILE)
+
+    lines = [
+        "## Comparação de Latência: joblib vs ONNX",
+        "",
+        f"Backend: **{n_requests} requisições** cada | Warmup: {DEFAULT_WARMUP} req",
+        "",
+        "| Métrica | joblib | ONNX | Δ |",
+        "|---------|-------|------|---|",
+    ]
+    for metric in ["P50", "P95", "P99", "min", "max"]:
+        j = joblib_stats[metric]
+        o = onnx_stats[metric]
+        delta = o - j
+        pct = (delta / j * 100) if j != 0 else 0
+        lines.append(f"| {metric} | {j:.2f} ms | {o:.2f} ms | {delta:+.2f} ms ({pct:+.1f}%) |")
+
+    lines.append("")
+    if joblib_size is not None and onnx_size is not None:
+        lines.append(f"| Artefato | {format_size(joblib_size)} | {format_size(onnx_size)} | — |")
+    lines.append("")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    logger.info("Tabela comparativa salva em %s", output_path)
+
+
 def _validate_sample_size(n: int) -> None:
     """Valida se o número de requisições é suficiente para percentis.
 
@@ -223,6 +320,35 @@ def _validate_sample_size(n: int) -> None:
         )
 
 
+def parse_args() -> argparse.Namespace:
+    """Parseia os argumentos da linha de comando.
+
+    Returns:
+        Namespace com os argumentos parseados.
+    """
+    parser = argparse.ArgumentParser(description="Benchmark de latência da API")
+    parser.add_argument("--url", default=DEFAULT_URL)
+    parser.add_argument("--requests", type=int, default=DEFAULT_REQUESTS)
+    parser.add_argument("--warmup", type=int, default=DEFAULT_WARMUP)
+    parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY)
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="API key para autenticação (header X-API-Key)",
+    )
+    parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="Modo comparação: roda benchmark com joblib e ONNX e exibe tabela comparativa",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Caminho do arquivo Markdown para salvar a tabela comparativa (modo --compare)",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     """Ponto de entrada do benchmark."""
     logging.basicConfig(
@@ -232,11 +358,23 @@ def main() -> None:
     args = parse_args()
     _validate_sample_size(args.requests)
 
-    # Build request headers if API key is provided
     headers: dict[str, str] = {}
     if args.api_key:
         headers["X-API-Key"] = args.api_key
 
+    if args.compare:
+        run_comparison_benchmark(args, headers)
+    else:
+        run_single_benchmark(args, headers)
+
+
+def run_single_benchmark(args: argparse.Namespace, headers: dict[str, str]) -> None:
+    """Executa benchmark com um único backend (backend atual da API).
+
+    Args:
+        args: Argumentos da linha de comando.
+        headers: Headers HTTP.
+    """
     print(f"Conectando em {args.url}...")
     try:
         health = httpx.get(f"{args.url}/health", timeout=HEALTH_TIMEOUT)
@@ -258,6 +396,79 @@ def main() -> None:
 
     stats = compute_percentiles(benchmark_latencies)
     print_results(stats, args.requests)
+
+
+def run_comparison_benchmark(args: argparse.Namespace, headers: dict[str, str]) -> None:
+    """Executa benchmark comparativo entre backends joblib e ONNX.
+
+    Requer que a API esteja rodando com Docker Compose. Para cada backend,
+    reinicia o container com a variável MODEL_BACKEND correspondente,
+    aguarda health check e executa o benchmark.
+
+    Args:
+        args: Argumentos da linha de comando.
+        headers: Headers HTTP.
+    """
+    import subprocess
+
+    results: dict[str, dict[str, float]] = {}
+    compose_cmd = ["docker", "compose", "-f", "docker/docker-compose.yml"]
+
+    for backend in ["joblib", "onnx"]:
+        print(f"\n{'=' * 60}")
+        print(f"  Benchmark com backend: {backend}")
+        print(f"{'=' * 60}")
+
+        env = os.environ.copy()
+        env["MODEL_BACKEND"] = backend
+
+        print(f"Reiniciando API com MODEL_BACKEND={backend}...")
+        subprocess.run(
+            compose_cmd + ["--env-file", ".env", "stop", "api"],
+            check=False,
+            capture_output=True,
+        )
+
+        docker_env = env.copy()
+        subprocess.run(
+            compose_cmd + ["--env-file", ".env", "up", "-d", "api"],
+            env=docker_env,
+            check=True,
+            capture_output=True,
+        )
+
+        print("Aguardando API ficar saudável...")
+        for _ in range(30):
+            try:
+                resp = httpx.get(f"{args.url}/health", timeout=HEALTH_TIMEOUT)
+                if resp.status_code == HTTP_OK:
+                    print(f"[OK] API saudável com backend {backend}")
+                    break
+            except httpx.ConnectError:
+                pass
+            time.sleep(2)
+        else:
+            raise RuntimeError(f"API não ficou saudável com backend {backend}")
+
+        predict_endpoint = f"{args.url}{DEFAULT_PREDICT_PATH}"
+        run_warmup(predict_endpoint, args.warmup, headers=headers)
+        latencies = run_benchmark(
+            predict_endpoint, args.requests, args.concurrency, headers=headers
+        )
+        results[backend] = compute_percentiles(latencies)
+
+    print_comparison(results["joblib"], results["onnx"], args.requests)
+
+    if args.output:
+        write_comparison_markdown(
+            results["joblib"], results["onnx"], args.requests, Path(args.output)
+        )
+
+    subprocess.run(
+        compose_cmd + ["--env-file", ".env", "stop", "api"],
+        check=False,
+        capture_output=True,
+    )
 
 
 if __name__ == "__main__":
