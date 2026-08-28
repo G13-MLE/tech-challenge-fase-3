@@ -421,33 +421,41 @@ def run_comparison_benchmark(args: argparse.Namespace, headers: dict[str, str]) 
 
         env = os.environ.copy()
         env["MODEL_BACKEND"] = backend
+        # MODEL_PATH must match the backend — onnx expects .onnx, joblib expects .joblib
+        env["MODEL_PATH"] = f"/app/models/model.{backend}"
+        # Disable rate limit for benchmark
+        env["RATE_LIMIT_MAX_PER_IP"] = "0"
 
-        print(f"Reiniciando API com MODEL_BACKEND={backend}...")
+        print(f"Reiniciando API com MODEL_BACKEND={backend}, MODEL_PATH=model.{backend}...")
         subprocess.run(
-            compose_cmd + ["--env-file", ".env", "stop", "api"],
+            compose_cmd + ["--env-file", ".env", "down", "api"],
             check=False,
             capture_output=True,
         )
 
-        docker_env = env.copy()
         subprocess.run(
-            compose_cmd + ["--env-file", ".env", "up", "-d", "api"],
-            env=docker_env,
+            compose_cmd + ["--env-file", ".env", "up", "-d", "--force-recreate", "api"],
+            env=env,
             check=True,
             capture_output=True,
         )
 
+        # Grace period: give the container time to start before polling
+        time.sleep(3)
+
         print("Aguardando API ficar saudável...")
+        healthy = False
         for _ in range(30):
             try:
                 resp = httpx.get(f"{args.url}/health", timeout=HEALTH_TIMEOUT)
                 if resp.status_code == HTTP_OK:
                     print(f"[OK] API saudável com backend {backend}")
+                    healthy = True
                     break
-            except httpx.ConnectError:
+            except httpx.ConnectError, httpx.RemoteProtocolError:
                 pass
             time.sleep(2)
-        else:
+        if not healthy:
             raise RuntimeError(f"API não ficou saudável com backend {backend}")
 
         predict_endpoint = f"{args.url}{DEFAULT_PREDICT_PATH}"
@@ -465,7 +473,7 @@ def run_comparison_benchmark(args: argparse.Namespace, headers: dict[str, str]) 
         )
 
     subprocess.run(
-        compose_cmd + ["--env-file", ".env", "stop", "api"],
+        compose_cmd + ["--env-file", ".env", "down", "api"],
         check=False,
         capture_output=True,
     )

@@ -290,10 +290,10 @@ async def runtime_error_handler(request: Request, exc: RuntimeError):
     Returns:
         JSONResponse com status 500 e detalhes do erro.
     """
-    logger.error("RuntimeError: %s", exc)
+    logger.error("RuntimeError: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)},
+        content={"detail": "Erro interno do servidor. Consulte os logs para detalhes."},
     )
 
 

@@ -53,6 +53,7 @@ stages:
     cmd: uv run python -m src.train.export_onnx
     deps:
       - models/model.joblib
+      - data/processed/test_split.csv
       - src/train/export_onnx.py
     outs:
       - models/model.onnx

@@ -21,6 +21,8 @@ from src.validate.run import validate_raw_data
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["load_raw_records", "preprocess_text", "main"]
+
 
 def load_raw_records(path: Path) -> list[tuple[str, int]]:
     """Carrega os registros brutos do CSV de laudos.

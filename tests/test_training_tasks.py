@@ -85,7 +85,6 @@ class TestTrainModel:
         monkeypatch.setattr("src.orchestration.training_tasks.TEST_DATA_PATH", test_path)
         monkeypatch.setattr("src.train.run.FEATURE_IMPORTANCES_PATH", feat_path)
         monkeypatch.setattr("src.train.run.TRAIN_METRICS_PATH", train_metrics_path)
-        monkeypatch.setattr("src.core.mlflow_utils._get_mlflow", lambda _: None)
 
         result = train_model(str(csv_path), params=TEST_PARAMS)
 
@@ -110,7 +109,6 @@ class TestTrainModel:
             "src.train.run.FEATURE_IMPORTANCES_PATH", tmp_path / "feature_importances.csv"
         )
         monkeypatch.setattr("src.train.run.TRAIN_METRICS_PATH", tmp_path / "train_metrics.json")
-        monkeypatch.setattr("src.core.mlflow_utils._get_mlflow", lambda _: None)
 
         train_model(str(csv_path), params=TEST_PARAMS)
         hash1 = hash_path.read_text(encoding="utf-8").strip()
@@ -146,6 +144,5 @@ class TestEvaluateModel:
             encoding="utf-8",
         )
         monkeypatch.setattr("src.evaluate.run.TEST_DATA_PATH", test_data)
-        monkeypatch.setattr("src.core.mlflow_utils._get_mlflow", lambda _: None)
         result = evaluate_model(str(mini_model_path))
         assert result == str(mini_model_path)

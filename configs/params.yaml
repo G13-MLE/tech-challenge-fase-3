@@ -11,9 +11,10 @@ train:
   # Estratégia de peso das classes ('balanced' ou null para desativar)
   random_forest_class_weight: balanced
   # Hiperparâmetros da regressão logística (usados se classifier=logistic_regression)
+  logistic_regression_class_weight: balanced
   logistic_regression_C: 1.0
   logistic_regression_max_iter: 1000
-  tfidf_max_features: 10000
+  tfidf_max_features: 20000
   # Faixa de n-grams (min, max)
   tfidf_ngram_range: [1, 2]
   # Log1p na frequência de termos
@@ -21,7 +22,7 @@ train:
   # Filtro de frequência de documentos
   tfidf_min_df: 2
   tfidf_max_df: 0.95
-  # Stopwords: true = português, false = sem stopwords, ou lista customizada
-  tfidf_stopwords: false
+  # Stopwords: true = inglês, false = sem stopwords, ou lista customizada
+  tfidf_stopwords: true
   # Número de folds para cross-validation (0 desativa)
   cv_folds: 5

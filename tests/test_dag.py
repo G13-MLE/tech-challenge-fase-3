@@ -11,10 +11,11 @@ def test_dag_imports():
 
     assert dag.dag_id == "train_pipeline"
     task_ids = {t.task_id for t in dag.tasks}
-    assert "load_data_task" in task_ids
+    assert "ingest_data_task" in task_ids
     assert "train_model_task" in task_ids
     assert "save_model_task" in task_ids
     assert "evaluate_model_task" in task_ids
+    assert "export_onnx_task" in task_ids
 
 
 def test_dag_catchup_false():

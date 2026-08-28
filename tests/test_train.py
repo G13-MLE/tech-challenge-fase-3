@@ -71,7 +71,8 @@ class TestBuildPipeline:
         assert list(pipeline.named_steps) == ["tfidf", "clf"]
 
     def test_build_pipeline_tfidf_configuration(self) -> None:
-        pipeline = build_pipeline(TEST_PARAMS)
+        params = TEST_PARAMS.model_copy(update={"tfidf_stopwords": True})
+        pipeline = build_pipeline(params)
         tfidf = pipeline.named_steps["tfidf"]
         assert tfidf.ngram_range == (1, 2)
         assert tfidf.sublinear_tf is True
@@ -80,11 +81,12 @@ class TestBuildPipeline:
         assert tfidf.max_features == MAX_FEATURES
         stopwords = tfidf.stop_words
         assert stopwords is not None
-        assert "de" in stopwords
-        assert "nao" in stopwords
+        assert "the" in stopwords
+        assert "and" in stopwords
 
     def test_build_pipeline_class_weight_balanced(self) -> None:
-        pipeline = build_pipeline(TEST_PARAMS)
+        params = TEST_PARAMS.model_copy(update={"tfidf_stopwords": True})
+        pipeline = build_pipeline(params)
         assert pipeline.named_steps["clf"].class_weight == "balanced"
 
     def test_build_pipeline_without_stopwords(self) -> None:
@@ -110,10 +112,11 @@ class TestBuildPipeline:
 class TestResolveStopwords:
     """Testes da resolução de stopwords."""
 
-    def test_true_returns_portuguese_list(self) -> None:
-        stopwords = resolve_stopwords(TEST_PARAMS)
+    def test_true_returns_english_list(self) -> None:
+        params = TEST_PARAMS.model_copy(update={"tfidf_stopwords": True})
+        stopwords = resolve_stopwords(params)
         assert stopwords is not None
-        assert "de" in stopwords
+        assert "the" in stopwords
 
     def test_false_returns_none(self) -> None:
         params = TEST_PARAMS.model_copy(update={"tfidf_stopwords": False})

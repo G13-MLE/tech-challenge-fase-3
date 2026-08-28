@@ -6,8 +6,8 @@ services:
     env_file:
       - ../.env
     environment:
-      - MODEL_PATH=/app/models/model.joblib
-      - MODEL_BACKEND=${MODEL_BACKEND:-onnx}
+      - MODEL_PATH=${MODEL_PATH:-/app/models/model.joblib}
+      - MODEL_BACKEND=${MODEL_BACKEND:-joblib}
       - RATE_LIMIT_MAX_PER_IP=${RATE_LIMIT_MAX_PER_IP:-60}
       - RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS:-60}
     volumes:
@@ -27,8 +27,8 @@ services:
     env_file:
       - ../.env
     environment:
-      - MODEL_PATH=/app/models/model.joblib
-      - MODEL_BACKEND=${MODEL_BACKEND:-onnx}
+      - MODEL_PATH=${MODEL_PATH:-/app/models/model.joblib}
+      - MODEL_BACKEND=${MODEL_BACKEND:-joblib}
     volumes:
       - ../data:/app/data
       - ../models:/app/models
@@ -152,24 +152,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v3.15.1
-    profiles:
-      - airflow
-    ports:
-      - "${MLFLOW_PORT:-5001}:5001"
-    environment:
-      MLFLOW_HOST: "0.0.0.0"
-      MLFLOW_PORT: "5001"
-    volumes:
-      - ../mlruns:/mlflow
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5001
-      --backend-store-uri sqlite:////mlflow/mlflow.db
-      --default-artifact-root /mlflow/artifacts
 
   # ── Monitoring profile ────────────────────────────────────────────────
 
