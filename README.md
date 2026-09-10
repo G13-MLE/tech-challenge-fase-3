@@ -137,7 +137,6 @@ Design patterns aplicados:
 ├── data/processed/         # laudos_processed.csv, test_split.csv (DVC tracked)
 ├── models/                 # model.joblib, model.onnx + hashes SHA256, thresholds.json
 ├── reports/                # classification_report.txt, metrics.json, benchmark_comparison.md
-├── docs/                   # resumos das aulas + enunciado do challenge
 ├── dvc.yaml                # 4 stages: ingestão → treino → avaliação → onnx
 ├── dvc.lock
 ├── Makefile                # atalhos para setup/lint/test/pipeline/benchmark/airflow/monitoring
