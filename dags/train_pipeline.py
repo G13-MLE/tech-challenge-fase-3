@@ -28,7 +28,7 @@ default_args = {
 with DAG(
     dag_id="train_pipeline",
     default_args=default_args,
-    description="Retreino semanal do modelo de triagem (TF-IDF + RandomForest)",
+    description="Retreino semanal do modelo de triagem (TF-IDF + LogisticRegression + limiares)",
     schedule="@weekly",
     start_date=datetime(2026, 1, 1),
     catchup=False,

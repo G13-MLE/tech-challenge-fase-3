@@ -19,6 +19,7 @@ stages:
     deps:
       - data/processed/laudos_processed.csv
       - src/train/run.py
+      - src/train/thresholds.py
       - src/core/dataset.py
       - src/core/params.py
       - src/core/stopwords.py
@@ -26,6 +27,7 @@ stages:
     outs:
       - models/model.joblib
       - models/model.joblib.sha256
+      - models/thresholds.json
       - data/processed/test_split.csv
       - reports/feature_importances.csv
     metrics:

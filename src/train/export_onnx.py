@@ -21,6 +21,7 @@ from src.core.dataset import (
     atomic_write_text,
     load_csv_records,
 )
+from src.train.thresholds import apply_thresholds, load_thresholds
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ def verify_onnx_parity(
 ) -> bool:
     """Verifica paridade de predição entre o modelo joblib e ONNX.
 
-    Compara as predições (argmax e probabilidade) dos dois backends
+    Compara as predições (com limiares aplicados) dos dois backends
     sobre uma amostra dos dados de teste. Diferenças pequenas são esperadas
     devido à normalização de texto (StringNormalizer) no ONNX Runtime.
 
@@ -104,24 +105,26 @@ def verify_onnx_parity(
     from src.models.urgency import URGENCY_MAP
 
     pipeline = joblib_mod.load(model_path)
+    thresholds = load_thresholds()
+    classes = [int(c) for c in pipeline.classes_]
     session = ort.InferenceSession(onnx_path.read_bytes(), providers=["CPUExecutionProvider"])
 
     texts, _ = load_csv_records(test_data_path)
     texts = texts[:max_samples]
 
     joblib_probas = pipeline.predict_proba(texts)
-    joblib_preds = pipeline.predict(texts)
+    joblib_preds = apply_thresholds(joblib_probas, thresholds, classes)
 
     input_name = session.get_inputs()[0].name
     onnx_inputs = {input_name: np.array(texts).reshape(-1, 1)}
     onnx_outputs = session.run(None, onnx_inputs)
-    onnx_labels = onnx_outputs[0]
     onnx_probas = onnx_outputs[1]
+    onnx_preds = apply_thresholds(onnx_probas, thresholds, classes)
 
     mismatches = 0
     for i in range(len(texts)):
         joblib_label = int(joblib_preds[i])
-        onnx_label = int(onnx_labels[i])
+        onnx_label = int(onnx_preds[i])
         if joblib_label != onnx_label:
             logger.warning(
                 "Paridade: amostra %d — joblib=%s(%s), onnx=%s(%s)",

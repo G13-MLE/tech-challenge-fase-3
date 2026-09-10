@@ -44,6 +44,9 @@ exclude = [
     "__pycache__",
     "build",
     "dist",
+    "scripts/experiment_recall.py",
+    "scripts/experiment_recall2.py",
+    "scripts/quick_test.py",
 ]
 
 [tool.ruff.lint]

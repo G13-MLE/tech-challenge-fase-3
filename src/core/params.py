@@ -40,6 +40,9 @@ class TrainParams(BaseModel):
         tfidf_stopwords: Se True, usa a lista de stopwords em inglês.
             Alternativamente, pode ser uma lista de stopwords customizada.
         cv_folds: Número de folds para cross-validation (0 desativa).
+        threshold_tuning: Se True, ajusta limiares de decisão por classe
+            via cross-validation para maximizar recall macro.
+        threshold_min_f1: F1 macro mínimo ao buscar limiares (trade-off recall vs precisão).
     """
 
     seed: int = Field(ge=0)
@@ -57,6 +60,8 @@ class TrainParams(BaseModel):
     tfidf_max_df: int | float = 0.95
     tfidf_stopwords: bool | list[str] = False
     cv_folds: int = Field(ge=0, default=5)
+    threshold_tuning: bool = True
+    threshold_min_f1: float = Field(ge=0.0, le=1.0, default=0.55)
 
 
 class Params(BaseModel):

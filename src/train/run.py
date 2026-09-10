@@ -26,6 +26,7 @@ from src.core.dataset import (
     MODEL_HASH_PATH,
     MODEL_PATH,
     TEST_DATA_PATH,
+    THRESHOLDS_PATH,
     TRAIN_METRICS_PATH,
     atomic_write_bytes,
     atomic_write_text,
@@ -34,6 +35,7 @@ from src.core.dataset import (
 )
 from src.core.params import TrainParams, load_params
 from src.core.stopwords import ENGLISH_STOPWORDS
+from src.train.thresholds import save_thresholds, tune_thresholds
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,7 @@ __all__ = [
     "save_feature_importances",
     "save_train_metrics",
     "run_cross_validation",
+    "run_threshold_tuning",
     "train_and_save",
     "main",
 ]
@@ -227,6 +230,38 @@ def run_cross_validation(
     }
 
 
+def run_threshold_tuning(
+    pipeline: Pipeline,
+    texts: list[str],
+    labels: list[int],
+    params: TrainParams,
+    thresholds_path: Path,
+) -> None:
+    """Ajusta e salva limiares de decisão por classe via cross-validation.
+
+    Se a ajuste de limiares estiver desativado nos parâmetros, salva
+    limiares neutros (0.0) para garantir consistência entre treino e inferência.
+
+    Args:
+        pipeline: Pipeline sklearn (usado como template para cross_val_predict).
+        texts: Textos de treino.
+        labels: Rótulos de treino.
+        params: Parâmetros do pipeline.
+        thresholds_path: Caminho do arquivo JSON de saída.
+    """
+    if not params.threshold_tuning:
+        from src.train.thresholds import DEFAULT_THRESHOLDS
+
+        save_thresholds(dict(DEFAULT_THRESHOLDS), thresholds_path)
+        logger.info(
+            "Ajuste de limiares desativado — limiares neutros salvos em %s", thresholds_path
+        )
+        return
+    thresholds = tune_thresholds(pipeline, texts, labels, params)
+    save_thresholds(thresholds, thresholds_path)
+    logger.info("Limiares salvos em %s", thresholds_path)
+
+
 def train_and_save(
     data_path: Path = DATA_PROCESSED_PATH,
     model_path: Path = MODEL_PATH,
@@ -234,13 +269,15 @@ def train_and_save(
     test_data_path: Path = TEST_DATA_PATH,
     feature_importances_path: Path | None = None,
     train_metrics_path: Path | None = None,
+    thresholds_path: Path | None = None,
     params: TrainParams | None = None,
 ) -> Path:
     """Executa o pipeline de treinamento completo e salva os artefatos.
 
     Carrega dados processados, divide em treino/teste com seed fixo,
     treina o Pipeline TF-IDF + classificador, valida as classes, salva
-    modelo + hash + split de teste + importâncias + métricas de CV.
+    modelo + hash + split de teste + importâncias + métricas de CV +
+    limiares de decisão.
 
     Args:
         data_path: Caminho do CSV processado.
@@ -249,6 +286,7 @@ def train_and_save(
         test_data_path: Caminho do CSV de teste.
         feature_importances_path: Caminho do CSV de importâncias. Se None, usa o padrão.
         train_metrics_path: Caminho do JSON de métricas de treino. Se None, usa o padrão.
+        thresholds_path: Caminho do JSON de limiares. Se None, usa o padrão.
         params: Parâmetros do pipeline. Se None, carrega de configs/params.yaml.
 
     Returns:
@@ -260,6 +298,8 @@ def train_and_save(
         feature_importances_path = FEATURE_IMPORTANCES_PATH
     if train_metrics_path is None:
         train_metrics_path = TRAIN_METRICS_PATH
+    if thresholds_path is None:
+        thresholds_path = THRESHOLDS_PATH
 
     texts, labels = load_csv_records(data_path)
     train_texts, test_texts, train_labels, test_labels = train_test_split(
@@ -279,8 +319,10 @@ def train_and_save(
     cv_metrics = run_cross_validation(pipeline, train_texts, train_labels, params.cv_folds)
     if cv_metrics:
         save_train_metrics(cv_metrics, train_metrics_path)
+    run_threshold_tuning(pipeline, train_texts, train_labels, params, thresholds_path)
     logger.info("Treinamento concluído: modelo salvo em %s", model_path)
     logger.info("Split de teste salvo em %s", test_data_path)
+    logger.info("Limiares salvos em %s", thresholds_path)
     return model_path
 
 

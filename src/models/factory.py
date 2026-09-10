@@ -16,6 +16,7 @@ import numpy as np
 
 from src.core.dataset import EXPECTED_CLASSES
 from src.models.urgency import URGENCY_MAP, UrgencyLevel
+from src.train.thresholds import DEFAULT_THRESHOLDS, apply_thresholds, load_thresholds
 
 __all__ = ["ModelLoader", "JoblibLoader", "OnnxLoader", "create_model", "register_loader"]
 
@@ -95,10 +96,15 @@ class JoblibLoader(ModelLoader):
 
     Inclui verificação de integridade SHA256 do artefato e validação
     das classes do modelo contra o mapeamento esperado.
+
+    Opcionalmente carrega limiares de decisão de um arquivo sidecar
+    (`<model_path>.thresholds.json` ou `models/thresholds.json`) para
+    ajustar as predições e maximizar o recall macro.
     """
 
     def __init__(self) -> None:
         self._model = None
+        self._thresholds: dict[str, float] = dict(DEFAULT_THRESHOLDS)
 
     def load(self, path: Path | str) -> None:
         """Carrega o Pipeline sklearn do arquivo joblib com verificação de integridade.
@@ -117,6 +123,7 @@ class JoblibLoader(ModelLoader):
         _verify_model_hash(path)
         self._model = joblib.load(path)
         _validate_model_classes(self._model)
+        self._thresholds = _load_thresholds_for_model(path)
 
     def predict(self, text: str) -> tuple[UrgencyLevel, float]:
         """Prediz o nível de urgência e a confiança associada.
@@ -133,7 +140,9 @@ class JoblibLoader(ModelLoader):
         if self._model is None:
             raise RuntimeError("Modelo não carregado. Chame load() primeiro.")
         probabilities = self._model.predict_proba([text])[0]
-        class_index = probabilities.argmax()
+        class_index = apply_thresholds(
+            probabilities.reshape(1, -1), self._thresholds, list(self._model.classes_)
+        )[0]
         raw_label = int(self._model.classes_[class_index])
         confidence = min(1.0, max(0.0, float(probabilities[class_index])))
         urgency = URGENCY_MAP[raw_label]
@@ -154,11 +163,12 @@ class JoblibLoader(ModelLoader):
         if self._model is None:
             raise RuntimeError("Modelo não carregado. Chame load() primeiro.")
         probabilities = self._model.predict_proba(texts)
+        indices = apply_thresholds(probabilities, self._thresholds, list(self._model.classes_))
         results: list[tuple[UrgencyLevel, float]] = []
-        for row in probabilities:
-            class_index = row.argmax()
-            raw_label = int(self._model.classes_[class_index])
-            results.append((URGENCY_MAP[raw_label], min(1.0, max(0.0, float(row[class_index])))))
+        for i, idx in enumerate(indices):
+            raw_label = int(self._model.classes_[idx])
+            conf = min(1.0, max(0.0, float(probabilities[i][idx])))
+            results.append((URGENCY_MAP[raw_label], conf))
         return results
 
 
@@ -168,11 +178,15 @@ class OnnxLoader(ModelLoader):
 
     Carrega o modelo ONNX via onnxruntime e realiza inferência
     com verificação de integridade SHA256.
+
+    Opcionalmente carrega limiares de decisão de um arquivo sidecar
+    para ajustar as predições e maximizar o recall macro.
     """
 
     def __init__(self) -> None:
         self._session = None
         self._input_name: str = ""
+        self._thresholds: dict[str, float] = dict(DEFAULT_THRESHOLDS)
 
     def load(self, path: Path | str) -> None:
         """Carrega o modelo ONNX com verificação de integridade e validação de classes.
@@ -196,6 +210,7 @@ class OnnxLoader(ModelLoader):
         )
         self._input_name = self._session.get_inputs()[0].name
         _validate_onnx_outputs(self._session)
+        self._thresholds = _load_thresholds_for_model(path)
 
     def predict(self, text: str) -> tuple[UrgencyLevel, float]:
         """Prediz o nível de urgência via ONNX Runtime.
@@ -213,9 +228,9 @@ class OnnxLoader(ModelLoader):
             raise RuntimeError("Modelo ONNX não carregado. Chame load() primeiro.")
         input_data = np.array([text]).reshape(-1, 1)
         outputs = self._session.run(None, {self._input_name: input_data})
-        labels = outputs[0]
         probas = outputs[1]
-        raw_label = int(labels[0])
+        indices = apply_thresholds(probas, self._thresholds, EXPECTED_CLASSES)
+        raw_label = int(indices[0])
         confidence = min(1.0, max(0.0, float(probas[0].max())))
         urgency = URGENCY_MAP[raw_label]
         return urgency, confidence
@@ -236,11 +251,11 @@ class OnnxLoader(ModelLoader):
             raise RuntimeError("Modelo ONNX não carregado. Chame load() primeiro.")
         input_data = np.array(texts).reshape(-1, 1)
         outputs = self._session.run(None, {self._input_name: input_data})
-        labels = outputs[0]
         probas = outputs[1]
+        indices = apply_thresholds(probas, self._thresholds, EXPECTED_CLASSES)
         results: list[tuple[UrgencyLevel, float]] = []
-        for i in range(len(texts)):
-            raw_label = int(labels[i])
+        for i, idx in enumerate(indices):
+            raw_label = int(idx)
             confidence = min(1.0, max(0.0, float(probas[i].max())))
             urgency = URGENCY_MAP[raw_label]
             results.append((urgency, confidence))
@@ -341,3 +356,31 @@ def _validate_onnx_outputs(session) -> None:
             raise ValueError(
                 f"Rótulo ONNX {int(label)} fora das classes esperadas {EXPECTED_CLASSES}"
             )
+
+
+def _load_thresholds_for_model(model_path: Path) -> dict[str, float]:
+    """Carrega limiares de decisão do sidecar do modelo.
+
+    Procura o arquivo de limiares em duas localizações:
+    1. `models/thresholds.json` (padrão do pipeline)
+    2. Sidecar ao lado do modelo: `<model_path>.thresholds.json`
+
+    Se nenhum arquivo de limiares existir, retorna limiares neutros (0.0),
+    permitindo que o sistema funcione sem ajuste de limiares.
+
+    Args:
+        model_path: Caminho do arquivo de modelo (.joblib ou .onnx).
+
+    Returns:
+        Dicionário com offsets por classe (chaves "0", "1", "2").
+    """
+    from src.core.dataset import THRESHOLDS_PATH
+
+    candidates = [
+        THRESHOLDS_PATH,
+        model_path.with_suffix(model_path.suffix + ".thresholds.json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return load_thresholds(candidate)
+    return dict(DEFAULT_THRESHOLDS)
