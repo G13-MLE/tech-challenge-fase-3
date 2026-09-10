@@ -213,9 +213,9 @@ make evaluate-live     # apenas a avaliação
 
 **Escolha**: AWS ECS/Fargate com container Docker.
 
-- Modelo leve (TF-IDF + RandomForest, 37.44 MB joblib / 21.96 MB ONNX) carregado em memória no startup
+- Modelo leve (TF-IDF + RandomForest, 37.44 MB joblib / 115.8 KB ONNX) carregado em memória no startup
 - Escalabilidade horizontal via ECS, sem gerenciamento de servidores (Fargate)
-- Latência previsível e baixa (P50 ≈ 10.77 ms), requisito crítico para triagem
+- Latência previsível e baixa (P50 ≈ 12.03 ms), requisito crítico para triagem
 
 ### Tecnologia
 
@@ -257,27 +257,27 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 
 | Percentil | Latência |
 |---|---|
-| P50 | 10.77 ms |
-| P95 | 12.34 ms |
-| P99 | 46.97 ms |
+| P50 | 12.03 ms |
+| P95 | 13.82 ms |
+| P99 | 45.89 ms |
 
 #### Comparativo joblib vs ONNX
 
 | Métrica | joblib | ONNX | Δ |
 |---|---|---|---|
-| P50 | 10.77 ms | 9.13 ms | -1.64 ms (-15.2%) |
-| P95 | 12.34 ms | 13.02 ms | +0.68 ms (+5.5%) |
-| P99 | 46.97 ms | 18.58 ms | -28.39 ms (-60.4%) |
-| min | 9.58 ms | 6.32 ms | -3.26 ms (-34.0%) |
-| max | 47.24 ms | 18.59 ms | -28.66 ms (-60.7%) |
-| Artefato | 37.44 MB | 21.96 MB | **ONNX é 41.3% menor** (58.7% do tamanho joblib) |
+| P50 | 12.03 ms | 8.80 ms | -3.23 ms (-26.8%) |
+| P95 | 13.82 ms | 13.02 ms | -0.80 ms (-5.8%) |
+| P99 | 45.89 ms | 21.35 ms | -24.54 ms (-53.5%) |
+| min | 10.33 ms | 6.93 ms | -3.40 ms (-32.9%) |
+| max | 46.12 ms | 21.37 ms | -24.76 ms (-53.7%) |
+| Artefato | 37.44 MB | 115.8 KB | **ONNX é 99.7% menor** (0.3% do tamanho joblib) |
 
 > Relatório completo: `reports/benchmark_comparison.md`
 >
-> **Nota**: P50 e P99 do ONNX são inferiores ao joblib (melhoria de 15.2% e 60.4%
-> respectivamente); P95 do ONNX é marginalmente superior (+5.5%) devido à
-> variabilidade da primeira inferência após o warmup. A paridade de predição
-> entre joblib e ONNX é de 100% (threshold de 95%).
+> **Nota**: P50 e P99 do ONNX são inferiores ao joblib (melhoria de 26.8% e 53.5%
+> respectivamente); P95 do ONNX é marginalmente inferior (-5.8%) dentro da
+> variabilidade esperada. A paridade de predição entre joblib e ONNX é de 100%
+> (threshold de 95%).
 
 ### Métricas do modelo (teste, 2.888 amostras)
 
@@ -554,7 +554,7 @@ Os CSVs são baixados via `make data-kaggle`, processados e salvos como `data/ra
 > - **Situation**: Hospital de referência precisa de triagem automática de laudos médicos
 > - **Task**: Requisitos da fase (latência < 50ms, CI/CD, Airflow, monitoramento)
 > - **Action**: Arquitetura ECS/Fargate, pipeline DVC 4 stages, ONNX para otimização, Prometheus+Grafana
-> - **Result**: Demo do pipeline funcionando, latência P95=12.34ms (joblib), P99 ONNX 60.4% mais rápido, dashboard Grafana, CI verde
+> - **Result**: Demo do pipeline funcionando, latência P95=13.82ms (joblib), P99 ONNX 53.5% mais rápido, dashboard Grafana, CI verde
 
 ## Créditos
 
