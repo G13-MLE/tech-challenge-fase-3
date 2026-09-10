@@ -17,6 +17,7 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 - [Arquitetura](#arquitetura)
 - [Entregáveis por etapa](#entregáveis-por-etapa)
 - [Critérios de avaliação](#critérios-de-avaliação)
+- [Bibliotecas requeridas](#bibliotecas-requeridas)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Pré-requisitos](#pré-requisitos)
 - [Setup rápido](#setup-rápido)
@@ -26,6 +27,7 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 - [FinOps — Estimativa de custos AWS](#finops--estimativa-de-custos-aws)
 - [Segurança](#segurança)
 - [CI/CD](#cicd)
+- [Histórico de commits](#histórico-de-commits)
 - [Airflow](#airflow)
 - [Monitoramento](#monitoramento)
 - [API e inferência](#api-e-inferência)
@@ -44,11 +46,11 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 | Dataset | [Medical Abstracts TC Corpus](https://www.kaggle.com/datasets/saharalaa/medical-abstracts-tc-corpus) (14.438 registros) |
 | Modelo | TF-IDF (20k features, 1-2 ngrams, English stopwords) + RandomForest (balanced, 100 estimators) |
 | Métricas | Accuracy 75.0%, F1 macro 64.3%, Recall urgente 71.1% |
-| Otimização | Exportação ONNX (artefato 41.3% menor), paridade 100% |
+| Otimização | Exportação ONNX (artefato 99.7% menor, 37.44 MB → 115.8 KB), paridade 100% |
 | Orquestração | DVC (4 stages: ingestão → treino → avaliação → ONNX) + Airflow (`@weekly`) |
 | Tracking | DVC (parâmetros, métricas, artefatos versionados) |
 | CI/CD | GitHub Actions (lint + test + build/push GHCR) |
-| Monitoramento | Prometheus (4 métricas) + Grafana (3 painéis auto-provisionados) |
+| Monitoramento | Prometheus (4 métricas) + Grafana (4 painéis auto-provisionados) |
 | Container | Docker multi-stage (`python:3.14-slim`), compose com perfis (api, train, airflow, monitoring) |
 | Build | uv + `pyproject.toml` com deps prod/dev separadas |
 | Lint | ruff + pre-commit |
@@ -101,6 +103,17 @@ Design patterns aplicados:
 | Monitoramento | 20% | ✔ Concluído | 4 métricas Prometheus, `/metrics`, Grafana 4 painéis auto-provisionados, `generate_traffic.py` |
 | README | 15% | ✔ Concluído | este documento — arquitetura, instruções passo a passo, latência, FinOps, segurança, CI/CD |
 | Vídeo STAR | 15% | ⚳ Pendente | link TBD |
+
+## Bibliotecas requeridas
+
+| Biblioteca | Versão | Uso | Localização |
+|---|---|---|---|
+| **scikit-learn** | ≥1.6.0 | Modelo base de classificação de texto (TF-IDF + RandomForest) | `src/train/run.py`, `configs/params.yaml` |
+| **FastAPI** | ≥0.115.0 | API REST para inferência (`/predict`, `/predict/batch`, `/health`, `/metrics`) | `src/api/app.py` |
+| **prometheus-client** | ≥0.21.0 | Instrumentação de métricas (latência, contagem de requisições e predições) | `src/core/metrics.py`, `/metrics` endpoint |
+| **apache-airflow** | ==3.3.1 | Orquestração de retreino (DAG `train_pipeline`, `@weekly`) | `dags/train_pipeline.py`, `src/orchestration/training_tasks.py` |
+
+> Dependências de otimização: `onnxruntime` (inferência ONNX), `skl2onnx` (conversão sklearn → ONNX). Declaradas em `pyproject.toml`.
 
 ## Estrutura do projeto
 
@@ -213,9 +226,9 @@ make evaluate-live     # apenas a avaliação
 
 **Escolha**: AWS ECS/Fargate com container Docker.
 
-- Modelo leve (TF-IDF + RandomForest, 37.44 MB joblib / 21.96 MB ONNX) carregado em memória no startup
+- Modelo leve (TF-IDF + RandomForest, 37.44 MB joblib / 115.8 KB ONNX) carregado em memória no startup
 - Escalabilidade horizontal via ECS, sem gerenciamento de servidores (Fargate)
-- Latência previsível e baixa (P50 ≈ 10.77 ms), requisito crítico para triagem
+- Latência previsível e baixa (P50 ≈ 12.03 ms), requisito crítico para triagem
 
 ### Tecnologia
 
@@ -257,27 +270,27 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 
 | Percentil | Latência |
 |---|---|
-| P50 | 10.77 ms |
-| P95 | 12.34 ms |
-| P99 | 46.97 ms |
+| P50 | 12.03 ms |
+| P95 | 13.82 ms |
+| P99 | 45.89 ms |
 
 #### Comparativo joblib vs ONNX
 
 | Métrica | joblib | ONNX | Δ |
 |---|---|---|---|
-| P50 | 10.77 ms | 9.13 ms | -1.64 ms (-15.2%) |
-| P95 | 12.34 ms | 13.02 ms | +0.68 ms (+5.5%) |
-| P99 | 46.97 ms | 18.58 ms | -28.39 ms (-60.4%) |
-| min | 9.58 ms | 6.32 ms | -3.26 ms (-34.0%) |
-| max | 47.24 ms | 18.59 ms | -28.66 ms (-60.7%) |
-| Artefato | 37.44 MB | 21.96 MB | **ONNX é 41.3% menor** (58.7% do tamanho joblib) |
+| P50 | 12.03 ms | 8.80 ms | -3.23 ms (-26.8%) |
+| P95 | 13.82 ms | 13.02 ms | -0.80 ms (-5.8%) |
+| P99 | 45.89 ms | 21.35 ms | -24.54 ms (-53.5%) |
+| min | 10.33 ms | 6.93 ms | -3.40 ms (-32.9%) |
+| max | 46.12 ms | 21.37 ms | -24.76 ms (-53.7%) |
+| Artefato | 37.44 MB | 115.8 KB | **ONNX é 99.7% menor** (0.3% do tamanho joblib) |
 
 > Relatório completo: `reports/benchmark_comparison.md`
 >
-> **Nota**: P50 e P99 do ONNX são inferiores ao joblib (melhoria de 15.2% e 60.4%
-> respectivamente); P95 do ONNX é marginalmente superior (+5.5%) devido à
-> variabilidade da primeira inferência após o warmup. A paridade de predição
-> entre joblib e ONNX é de 100% (threshold de 95%).
+> **Nota**: P50 e P99 do ONNX são inferiores ao joblib (melhoria de 26.8% e 53.5%
+> respectivamente); P95 do ONNX é marginalmente inferior (-5.8%) dentro da
+> variabilidade esperada. A paridade de predição entre joblib e ONNX é de 100%
+> (threshold de 95%).
 
 ### Métricas do modelo (teste, 2.888 amostras)
 
@@ -323,7 +336,7 @@ Benchmark Docker, 100 requisições sequenciais, warmup 10, rate limiting desabi
 - **Spot instances/Fargate Spot**: até 70% de desconto para tasks tolerantes a interrupção
 - **Graviton2 (ARM64)**: até 20% melhor custo/desempenho que x86
 - **Reserva de capacity**: Savings Plans para cargas previsíveis (1 ano: ≈ 20% desconto)
-- **Modelo leve**: 21.96 MB ONNX permite instâncias menores (0.25 vCPU) sem impacto perceptível
+- **Modelo leve**: 115.8 KB ONNX permite instâncias menores (0.25 vCPU) sem impacto perceptível
 
 ## Segurança
 
@@ -369,6 +382,34 @@ push/PR → main
 - Concorrência: `cancel-in-progress` por branch
 - Permissões: `contents: read` (lint/test), `packages: write` (build)
 - Cache: `setup-uv@v6` com cache do `uv.lock`
+
+## Histórico de commits
+
+O repositório segue **Conventional Commits** com branches organizadas por etapa do challenge:
+
+| Tipo | Uso | Exemplos |
+|---|---|---|
+| `feat:` | Nova funcionalidade | `feat: integra Prometheus à stack de monitoramento` |
+| `ci:` | Configuração de CI/CD | `ci: add GitHub Actions workflow (lint + test + build)` |
+| `setup:` | Configuração inicial | `setup: configura fundação do projeto` |
+| `refactor:` | Refatoração sem mudança de comportamento | `refactor: torna caminhos de avaliação injetáveis` |
+| `docs:` | Documentação | `docs: atualiza métricas de benchmark` |
+
+Estrutura de branches por etapa: `etapa-1/...`, `etapa-2/airflow`, `etapa-3/prometheus`, `etapa-4/...`. Cada etapa é desenvolvida em branch separada e mesclada via PR, garantindo rastreabilidade.
+
+```bash
+git log --oneline
+# d952c0c Initial commit
+# 2e859e8 setup: configura fundação do projeto (#1)
+# 78bd566 feat: arquitetura api inicial (#9)
+# d682732 feat: implementa pipeline DVC (#13)
+# 2a7d2f3 feat: adiciona DAG Airflow (#14)
+# 2cf6f27 ci: add GitHub Actions workflow (#15)
+# 6aef044 feat: integra Prometheus (#16)
+# 5d50d97 feat: adiciona Grafana (#17)
+# e6dbf21 feat: exporta modelo ONNX (#18)
+# 963986e feat: consolida etapa 4 (#19)
+```
 
 ## Airflow
 
@@ -554,7 +595,7 @@ Os CSVs são baixados via `make data-kaggle`, processados e salvos como `data/ra
 > - **Situation**: Hospital de referência precisa de triagem automática de laudos médicos
 > - **Task**: Requisitos da fase (latência < 50ms, CI/CD, Airflow, monitoramento)
 > - **Action**: Arquitetura ECS/Fargate, pipeline DVC 4 stages, ONNX para otimização, Prometheus+Grafana
-> - **Result**: Demo do pipeline funcionando, latência P95=12.34ms (joblib), P99 ONNX 60.4% mais rápido, dashboard Grafana, CI verde
+> - **Result**: Demo do pipeline funcionando, latência P95=13.82ms (joblib), P99 ONNX 53.5% mais rápido, dashboard Grafana, CI verde
 
 ## Créditos
 

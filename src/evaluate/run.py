@@ -127,28 +127,36 @@ def save_confusion_matrix(true_labels: list[int], predicted_labels: list[int], p
 
 
 def run_evaluation(
-    model_path: Path = MODEL_PATH,
+    model_path: Path | None = None,
     test_data_path: Path | None = None,
-    metrics_path: Path = METRICS_PATH,
-    report_path: Path = REPORT_PATH,
-    confusion_matrix_path: Path = CONFUSION_MATRIX_PATH,
+    metrics_path: Path | None = None,
+    report_path: Path | None = None,
+    confusion_matrix_path: Path | None = None,
     backend: ModelBackend = "joblib",
 ) -> dict[str, float]:
     """Executa a avaliação completa e salva métricas, relatório e matriz.
 
     Args:
-        model_path: Caminho do modelo a avaliar.
+        model_path: Caminho do modelo a avaliar. Se None, usa o padrão.
         test_data_path: Caminho do CSV de teste. Se None, usa o padrão.
-        metrics_path: Caminho do JSON de métricas de saída.
-        report_path: Caminho do relatório de classificação de saída.
-        confusion_matrix_path: Caminho do CSV da matriz de confusão de saída.
+        metrics_path: Caminho do JSON de métricas de saída. Se None, usa o padrão.
+        report_path: Caminho do relatório de classificação de saída. Se None, usa o padrão.
+        confusion_matrix_path: Caminho do CSV da matriz de confusão de saída. Se None, usa o padrão.
         backend: Backend de carregamento ('joblib' ou 'onnx').
 
     Returns:
         Dicionário com as métricas calculadas.
     """
+    if model_path is None:
+        model_path = MODEL_PATH
     if test_data_path is None:
         test_data_path = TEST_DATA_PATH
+    if metrics_path is None:
+        metrics_path = METRICS_PATH
+    if report_path is None:
+        report_path = REPORT_PATH
+    if confusion_matrix_path is None:
+        confusion_matrix_path = CONFUSION_MATRIX_PATH
     texts, labels = load_csv_records(test_data_path)
     model = create_model(model_path, backend=backend)
     predictions = model.predict_batch(texts)

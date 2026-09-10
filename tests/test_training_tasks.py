@@ -144,5 +144,10 @@ class TestEvaluateModel:
             encoding="utf-8",
         )
         monkeypatch.setattr("src.evaluate.run.TEST_DATA_PATH", test_data)
+        monkeypatch.setattr("src.evaluate.run.METRICS_PATH", tmp_path / "metrics.json")
+        monkeypatch.setattr("src.evaluate.run.REPORT_PATH", tmp_path / "classification_report.txt")
+        monkeypatch.setattr(
+            "src.evaluate.run.CONFUSION_MATRIX_PATH", tmp_path / "confusion_matrix.csv"
+        )
         result = evaluate_model(str(mini_model_path))
         assert result == str(mini_model_path)
