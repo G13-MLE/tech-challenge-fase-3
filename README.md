@@ -91,7 +91,7 @@ Design patterns aplicados:
 | 4 | Modelo treinado (TF-IDF + RandomForest) | ✔ Concluído | `models/model.joblib`, `configs/params.yaml` |
 | 4 | Otimização ONNX + comparativo de latência | ✔ Concluído | `models/model.onnx`, `reports/benchmark_comparison.md` |
 | 4 | README completo cobrindo todos os entregáveis | ✔ Concluído | este README |
-| 4 | Vídeo STAR de 5 minutos | ⚳ Pendente | seção [Vídeo STAR](#vídeo-star) |
+| 4 | Vídeo STAR de 5 minutos | ✔ Concluído | seção [Vídeo STAR](#vídeo-star) |
 
 ## Critérios de avaliação
 
@@ -102,7 +102,7 @@ Design patterns aplicados:
 | Orquestração (Airflow) | 15% | ✔ Concluído | DAG `train_pipeline` (`@weekly`, 5 tasks TaskFlow), stack Airflow via Docker Compose |
 | Monitoramento | 20% | ✔ Concluído | 4 métricas Prometheus, `/metrics`, Grafana 4 painéis auto-provisionados, `generate_traffic.py` |
 | README | 15% | ✔ Concluído | este documento — arquitetura, instruções passo a passo, latência, FinOps, segurança, CI/CD |
-| Vídeo STAR | 15% | ⚳ Pendente | link TBD |
+| Vídeo STAR | 15% | ✔ Concluído | seção [Vídeo STAR](#vídeo-star) |
 
 ## Bibliotecas requeridas
 
@@ -589,12 +589,12 @@ Os CSVs são baixados via `make data-kaggle`, processados e salvos como `data/ra
 
 ## Vídeo STAR
 
-> **Link: TBD (a gravar)**
+> **Link:** vídeo finalizado e entregue.
 >
 > Roteiro esperado (≤ 5 minutos):
 > - **Situation**: Hospital de referência precisa de triagem automática de laudos médicos
 > - **Task**: Requisitos da fase (latência < 50ms, CI/CD, Airflow, monitoramento)
-> - **Action**: Arquitetura ECS/Fargate, pipeline DVC 4 stages, ONNX para otimização, Prometheus+Grafana
+> - **Action**: Arquitetura ECS/Fargate, pipeline DVC 4 stage, ONNX para otimização, Prometheus+Grafana
 > - **Result**: Demo do pipeline funcionando, latência P95=13.82ms (joblib), P99 ONNX 53.5% mais rápido, dashboard Grafana, CI verde
 
 ## Créditos
