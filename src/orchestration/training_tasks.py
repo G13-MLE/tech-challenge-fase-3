@@ -74,7 +74,7 @@ def load_data(path: Path | str | None = None) -> str:
 
 
 def train_model(csv_path: str, params=None) -> str:
-    """Treina o Pipeline TF-IDF + RandomForest e salva modelo + hash + teste.
+    """Treina o Pipeline TF-IDF + classificador e salva modelo + hash + teste + limiares.
 
     Reutiliza as funções de treino do pipeline DVC (src.train.run).
 

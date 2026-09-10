@@ -6,14 +6,14 @@ train:
   seed: 42
   test_size: 0.2
   # Classificador: "random_forest" ou "logistic_regression"
-  classifier: random_forest
+  classifier: logistic_regression
   random_forest_n_estimators: 100
   # Estratégia de peso das classes ('balanced' ou null para desativar)
   random_forest_class_weight: balanced
   # Hiperparâmetros da regressão logística (usados se classifier=logistic_regression)
   logistic_regression_class_weight: balanced
-  logistic_regression_C: 1.0
-  logistic_regression_max_iter: 1000
+  logistic_regression_C: 0.5
+  logistic_regression_max_iter: 2000
   tfidf_max_features: 20000
   # Faixa de n-grams (min, max)
   tfidf_ngram_range: [1, 2]
@@ -26,3 +26,7 @@ train:
   tfidf_stopwords: true
   # Número de folds para cross-validation (0 desativa)
   cv_folds: 5
+  # Ajuste de limiares de decisão por classe via cross-validation (0 desativa)
+  threshold_tuning: true
+  # F1 macro mínimo ao buscar limiares (trade-off recall vs precisão)
+  threshold_min_f1: 0.55

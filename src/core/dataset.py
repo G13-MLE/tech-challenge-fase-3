@@ -15,6 +15,7 @@ __all__ = [
     "MODEL_HASH_PATH",
     "ONNX_MODEL_PATH",
     "ONNX_MODEL_HASH_PATH",
+    "THRESHOLDS_PATH",
     "METRICS_PATH",
     "REPORT_PATH",
     "CONFUSION_MATRIX_PATH",
@@ -36,6 +37,7 @@ MODEL_PATH = Path("models/model.joblib")
 MODEL_HASH_PATH = Path("models/model.joblib.sha256")
 ONNX_MODEL_PATH = Path("models/model.onnx")
 ONNX_MODEL_HASH_PATH = Path("models/model.onnx.sha256")
+THRESHOLDS_PATH = Path("models/thresholds.json")
 METRICS_PATH = Path("reports/metrics.json")
 REPORT_PATH = Path("reports/classification_report.txt")
 CONFUSION_MATRIX_PATH = Path("reports/confusion_matrix.csv")

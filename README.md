@@ -2,9 +2,9 @@
 
 Sistema de triagem automática de laudos médicos (NLP) para classificação de urgência
 (normal / atenção / urgente), com pipeline reprodutível via **DVC**, modelo **TF-IDF +
-RandomForest** otimizado para **ONNX**, servido via **FastAPI** em container Docker,
-com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
-(Prometheus + Grafana).
+LogisticRegression** com **ajuste de limiares** otimizado para **ONNX**, servido via
+**FastAPI** em container Docker, com **CI/CD** (GitHub Actions), **orquestração**
+(Airflow) e **monitoramento** (Prometheus + Grafana).
 
 > Projeto do grupo **G13-MLE** para o Tech Challenge da Fase 03 (PÓS TECH FIAP).
 > Dataset: **Medical Abstracts TC Corpus** (14.438 laudos, 5 classes clínicas → 3 níveis de urgência).
@@ -44,8 +44,8 @@ com **CI/CD** (GitHub Actions), **orquestração** (Airflow) e **monitoramento**
 |---|---|
 | Problema | Triagem automática de laudos médicos por nível de urgência |
 | Dataset | [Medical Abstracts TC Corpus](https://www.kaggle.com/datasets/saharalaa/medical-abstracts-tc-corpus) (14.438 registros) |
-| Modelo | TF-IDF (20k features, 1-2 ngrams, English stopwords) + RandomForest (balanced, 100 estimators) |
-| Métricas | Accuracy 75.0%, F1 macro 64.3%, Recall urgente 71.1% |
+| Modelo | TF-IDF (20k features, 1-2 ngrams, English stopwords) + LogisticRegression (C=0.5, balanced) + ajuste de limiares por classe |
+| Métricas | Accuracy 77.7%, F1 macro 72.0%, Recall macro 80.6%, Recall urgente 80.7% |
 | Otimização | Exportação ONNX (artefato 99.7% menor, 37.44 MB → 115.8 KB), paridade 100% |
 | Orquestração | DVC (4 stages: ingestão → treino → avaliação → ONNX) + Airflow (`@weekly`) |
 | Tracking | DVC (parâmetros, métricas, artefatos versionados) |
@@ -88,7 +88,7 @@ Design patterns aplicados:
 | 3 | Instrumentação Prometheus (`prometheus_client`) | ✔ Concluído | `src/core/metrics.py`, `src/api/app.py` (`/metrics`) |
 | 3 | Docker Compose com API + Prometheus + Grafana | ✔ Concluído | `docker/docker-compose.yml` (perfil `monitoring`) |
 | 3 | Dashboard Grafana com ≥3 painéis | ✔ Concluído | `configs/grafana/dashboards/triage-api.json` (Taxa de Requisições, Latência P95, Taxa de Erro, Total de Requisições) |
-| 4 | Modelo treinado (TF-IDF + RandomForest) | ✔ Concluído | `models/model.joblib`, `configs/params.yaml` |
+| 4 | Modelo treinado (TF-IDF + LogisticRegression + limiares) | ✔ Concluído | `models/model.joblib`, `models/thresholds.json`, `configs/params.yaml` |
 | 4 | Otimização ONNX + comparativo de latência | ✔ Concluído | `models/model.onnx`, `reports/benchmark_comparison.md` |
 | 4 | README completo cobrindo todos os entregáveis | ✔ Concluído | este README |
 | 4 | Vídeo STAR de 5 minutos | ✔ Concluído | seção [Vídeo STAR](#vídeo-star) |
@@ -97,7 +97,7 @@ Design patterns aplicados:
 
 | Critério | Peso | Status | Evidência |
 |---|---|---|---|
-| Modelagem/Otimização | 20% | ✔ Concluído | TF-IDF + RandomForest treinado, ONNX exportado (100% paridade), benchmark comparativo, modelo real (14.438 registros, F1 macro 64.3%) |
+| Modelagem/Otimização | 20% | ✔ Concluído | TF-IDF + LogisticRegression com ajuste de limiares, ONNX exportado (paridade com limiares), benchmark comparativo, modelo real (14.438 registros, F1 macro 72.0%, recall macro 80.6%) |
 | CI/CD (GitHub Actions) | 15% | ✔ Concluído | `.github/workflows/ci.yml`: lint → test → build/push GHCR em push/PR para `main` |
 | Orquestração (Airflow) | 15% | ✔ Concluído | DAG `train_pipeline` (`@weekly`, 5 tasks TaskFlow), stack Airflow via Docker Compose |
 | Monitoramento | 20% | ✔ Concluído | 4 métricas Prometheus, `/metrics`, Grafana 4 painéis auto-provisionados, `generate_traffic.py` |
@@ -108,7 +108,7 @@ Design patterns aplicados:
 
 | Biblioteca | Versão | Uso | Localização |
 |---|---|---|---|
-| **scikit-learn** | ≥1.6.0 | Modelo base de classificação de texto (TF-IDF + RandomForest) | `src/train/run.py`, `configs/params.yaml` |
+| **scikit-learn** | ≥1.6.0 | Modelo base de classificação de texto (TF-IDF + LogisticRegression + ajuste de limiares) | `src/train/run.py`, `src/train/thresholds.py`, `configs/params.yaml` |
 | **FastAPI** | ≥0.115.0 | API REST para inferência (`/predict`, `/predict/batch`, `/health`, `/metrics`) | `src/api/app.py` |
 | **prometheus-client** | ≥0.21.0 | Instrumentação de métricas (latência, contagem de requisições e predições) | `src/core/metrics.py`, `/metrics` endpoint |
 | **apache-airflow** | ==3.3.1 | Orquestração de retreino (DAG `train_pipeline`, `@weekly`) | `dags/train_pipeline.py`, `src/orchestration/training_tasks.py` |
@@ -126,7 +126,7 @@ Design patterns aplicados:
 │   ├── models/             # factory (JoblibLoader, OnnxLoader), urgency enum
 │   ├── orchestration/      # Airflow training tasks
 │   ├── preprocess/         # normalização de texto, pipeline de ingestão
-│   ├── train/              # treino (RandomForest/LogisticRegression), exportação ONNX
+│   ├── train/              # treino (LogisticRegression/RandomForest), limiares, exportação ONNX
 │   └── validate/           # validação de dados brutos
 ├── tests/                  # 129 testes pytest
 ├── dags/                   # Airflow DAG (train_pipeline)
@@ -135,7 +135,7 @@ Design patterns aplicados:
 ├── scripts/                # benchmark, download_data, generate_synthetic_data, generate_traffic, validate_env
 ├── data/raw/               # laudos.csv (DVC tracked)
 ├── data/processed/         # laudos_processed.csv, test_split.csv (DVC tracked)
-├── models/                 # model.joblib, model.onnx + hashes SHA256
+├── models/                 # model.joblib, model.onnx + hashes SHA256, thresholds.json
 ├── reports/                # classification_report.txt, metrics.json, benchmark_comparison.md
 ├── docs/                   # resumos das aulas + enunciado do challenge
 ├── dvc.yaml                # 4 stages: ingestão → treino → avaliação → onnx
@@ -226,7 +226,7 @@ make evaluate-live     # apenas a avaliação
 
 **Escolha**: AWS ECS/Fargate com container Docker.
 
-- Modelo leve (TF-IDF + RandomForest, 37.44 MB joblib / 115.8 KB ONNX) carregado em memória no startup
+- Modelo leve (TF-IDF + LogisticRegression, 37.44 MB joblib / 115.8 KB ONNX) carregado em memória no startup
 - Escalabilidade horizontal via ECS, sem gerenciamento de servidores (Fargate)
 - Latência previsível e baixa (P50 ≈ 12.03 ms), requisito crítico para triagem
 
@@ -235,7 +235,7 @@ make evaluate-live     # apenas a avaliação
 | Componente | Decisão |
 |---|---|
 | API | FastAPI (`/health`, `/metrics`, `/api/v1/predict`, `/api/v1/predict/batch`) |
-| Modelo | Scikit-Learn (TF-IDF + RandomForest), artefato em `joblib` + `onnx` |
+| Modelo | Scikit-Learn (TF-IDF + LogisticRegression + limiares), artefato em `joblib` + `onnx` |
 | Container | Docker multi-stage, `python:3.14-slim`, não-root (`appuser`) |
 | Benchmark | Percentis P50/P95/P99 (nunca média), comparativo joblib vs ONNX |
 | Orquestração | DVC (pipeline reprodutível) + Airflow (re-treino semanal) |
@@ -546,9 +546,12 @@ Todos os hiperparâmetros ficam em [`configs/params.yaml`](configs/params.yaml) 
 |---|---|---|---|
 | `train` | `seed` | 42 | Seed reprodutível |
 | `train` | `test_size` | 0.2 | Proporção do split de teste |
-| `train` | `classifier` | `random_forest` | Classificador: `random_forest` ou `logistic_regression` |
-| `train` | `random_forest_n_estimators` | 100 | Número de árvores |
-| `train` | `random_forest_class_weight` | `balanced` | Peso das classes (compensa desbalanceamento) |
+| `train` | `classifier` | `logistic_regression` | Classificador: `random_forest` ou `logistic_regression` |
+| `train` | `random_forest_n_estimators` | 100 | Número de árvores (usado se classifier=random_forest) |
+| `train` | `random_forest_class_weight` | `balanced` | Peso das classes do RandomForest (compensa desbalanceamento) |
+| `train` | `logistic_regression_C` | 0.5 | Inverso da regularização da regressão logística |
+| `train` | `logistic_regression_class_weight` | `balanced` | Peso das classes da regressão logística |
+| `train` | `logistic_regression_max_iter` | 2000 | Número máximo de iterações da regressão logística |
 | `train` | `tfidf_max_features` | 20000 | Máximo de features TF-IDF |
 | `train` | `tfidf_ngram_range` | [1, 2] | N-grams (1=unigrams, 2=bigrams) |
 | `train` | `tfidf_sublinear_tf` | true | Log1p na frequência de termos |
@@ -556,6 +559,8 @@ Todos os hiperparâmetros ficam em [`configs/params.yaml`](configs/params.yaml) 
 | `train` | `tfidf_max_df` | 0.95 | Frequência máxima de documento |
 | `train` | `tfidf_stopwords` | true | Stopwords (true=inglês, false=sem) |
 | `train` | `cv_folds` | 5 | Folds de cross-validation (0=desativado) |
+| `train` | `threshold_tuning` | true | Ajuste de limiares por classe via CV (maximiza recall macro) |
+| `train` | `threshold_min_f1` | 0.55 | F1 macro mínimo ao buscar limiares (trade-off recall vs precisão) |
 
 ## Testes e lint
 
